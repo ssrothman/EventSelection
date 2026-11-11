@@ -39,6 +39,9 @@ def _add(process, task, label, module):
 
 def addCommon(process, task=None, suffix='', objectCuts=None, metFilterProcess='PAT', metFilters=None):
     """Object collections, good-vertex flag and MET-filter flag. objectCuts overrides OBJECT_CUTS entries."""
+    unknown = set(objectCuts or {}) - set(OBJECT_CUTS)
+    if unknown:
+        raise ValueError('unknown object collections: %s' % sorted(unknown))
     cuts = dict(OBJECT_CUTS, **(objectCuts or {}))
     sel = dict(Muons=('PATMuonSelector', 'slimmedMuons'), Electrons=('PATElectronSelector', 'slimmedElectrons'),
                Photons=('PATPhotonSelector', 'slimmedPhotons'))
@@ -97,11 +100,20 @@ def addChannel(process, channel, task=None, suffix='', triggers=None, **cuts):
     return flag
 
 
-def addAllChannels(process, task=None, suffix='', tableName='Selection', withTables=True):
+def addAllChannels(process, task=None, suffix='', tableName='Selection', withTables=True,
+                   objectCuts=None, metFilters=None, metFilterProcess='PAT', triggers=None, channelCuts=None):
     """All channels, the 'anyChannel' OR flag/filter and, optionally, NanoAOD tables:
-    <tableName> (one bool per channel and its components) and <ch>Boson / <ch>Objects candidate tables."""
-    addCommon(process, task, suffix)
-    flags = [addChannel(process, ch, task, suffix) for ch in CHANNELS]
+    <tableName> (one bool per channel and its components) and <ch>Boson / <ch>Objects candidate tables.
+    Overrides: objectCuts {collection: cut string} (see OBJECT_CUTS), metFilters [Flag_* names],
+    triggers {channel: [path globs]} (see TRIGGERS), channelCuts {channel: {selector parameter: value}}."""
+    triggers = dict(triggers or {})
+    channelCuts = dict(channelCuts or {})
+    unknown = (set(triggers) | set(channelCuts)) - set(CHANNELS)
+    if unknown:
+        raise ValueError('unknown channels: %s' % sorted(unknown))
+    addCommon(process, task, suffix, objectCuts=objectCuts, metFilterProcess=metFilterProcess, metFilters=metFilters)
+    flags = [addChannel(process, ch, task, suffix, triggers=triggers.get(ch), **channelCuts.get(ch, {}))
+             for ch in CHANNELS]
     _add(process, task, 'anyChannel' + suffix, cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*flags)))
     setattr(process, 'anyChannel' + suffix + 'Filter',
             cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(*flags), mode=cms.string('or')))

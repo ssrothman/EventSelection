@@ -20,6 +20,8 @@ Framework-free logic (pair choice, m_T, veto overlap) lives in `interface/Select
 - `addCommon` creates the object collections (`tightMuons`, `vetoMuons`, `tightElectrons`, `vetoElectrons`, `tightPhotons`) with the existing `PAT*Selector` string cuts, plus `goodVertexFlag` and `metFilterFlag`.
 - `addChannel(process, ch, suffix='', **cuts)` adds `<ch>Trigger`, `<ch>Sel`, `<ch>` (the AND of trigger, vertex, MET filters and selection) and `<ch>Filter`. Threshold variations: call it again with a `suffix` and the changed cuts.
 - `addAllChannels` adds all channels, `anyChannel` / `anyChannelFilter`, and NanoAOD tables: `Selection_*` flags and `<ch>Boson` / `<ch>Objects`.
+  Overrides: `objectCuts={collection: cut}`, `metFilters=[...]`, `triggers={channel: [globs]}` and
+  `channelCuts={channel: {parameter: value}}`. Unknown collection or channel names raise.
 
 Proposed defaults, all of them parameters:
 
