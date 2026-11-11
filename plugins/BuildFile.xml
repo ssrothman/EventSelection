@@ -1,0 +1,12 @@
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/Utilities"/>
+<use name="FWCore/Common"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/Candidate"/>
+<use name="DataFormats/VertexReco"/>
+<use name="DataFormats/NanoAOD"/>
+<use name="SRothman/EventSelection"/>
+<library file="*.cc" name="SRothmanEventSelectionPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

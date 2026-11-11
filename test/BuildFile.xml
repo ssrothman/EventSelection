@@ -1,0 +1,10 @@
+<bin name="testSRothmanEventSelection" file="test_selection.cc">
+  <use name="catch2"/>
+  <use name="SRothman/EventSelection"/>
+</bin>
+<bin name="testSRothmanEventSelectionModules" file="test_modules.cc">
+  <use name="catch2"/>
+  <use name="FWCore/TestProcessor"/>
+  <use name="DataFormats/Candidate"/>
+  <use name="DataFormats/NanoAOD"/>
+</bin>
