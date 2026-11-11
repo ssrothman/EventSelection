@@ -17,27 +17,16 @@ plus thin filters on those flags.
 Framework-free logic (pair choice, m_T, veto overlap) lives in `interface/Selection.h`.
 
 ## Python: `SRothman.EventSelection.eventSelection_cff`
-- `addCommon` creates the object collections (`tightMuons`, `vetoMuons`, `tightElectrons`, `vetoElectrons`, `tightPhotons`) with the existing `PAT*Selector` string cuts, plus `goodVertexFlag` and `metFilterFlag`.
-- `addChannel(process, ch, suffix='', **cuts)` adds `<ch>Trigger`, `<ch>Sel`, `<ch>` (the AND of trigger, vertex, MET filters and selection) and `<ch>Filter`. Threshold variations: call it again with a `suffix` and the changed cuts.
-- `addAllChannels` adds all channels, `anyChannel` / `anyChannelFilter`, and NanoAOD tables: `Selection_*` flags and `<ch>Boson` / `<ch>Objects`.
-  Overrides: `objectCuts={collection: cut}`, `metFilters=[...]`, `triggers={channel: [globs]}` and
-  `channelCuts={channel: {parameter: value}}`. Unknown collection or channel names raise.
+The helpers take the `selection` and `inputs` sections of the boostedV analysis YAML (`simulation/configs/default.yaml`)
+as dicts and have no physics defaults. Cuts, triggers, MET filters, object definitions and the channels themselves are set there.
 
-Proposed defaults, all of them parameters:
-
-| Channel | Trigger | Selection |
-|---|---|---|
-| Zmumu | `HLT_IsoMu24_v*` | tight ID + PFIsoTight muons, pt > 26/15, \|η\| < 2.4, OS, 71 < m < 111 |
-| Zee | `HLT_Ele32_WPTight_Gsf_v*` | cutBased RunIIIWinter22 V1 tight electrons, pt > 35/15, \|η_SC\| < 2.5 excluding the EB/EE gap, OS, same window |
-| Wmunu / Wenu | as Z | exactly one tight lepton with pt > 30/35, no other veto lepton, PUPPI MET > 40, m_T > 50 |
-| Hadronic | `HLT_AK8PFJet500_v*` OR `HLT_PFHT1050_v*` | no veto lepton, no tight photon (jet requirements are in JetSetup) |
-| GammaJets | `HLT_Photon200_v*` | exactly one RunIIIWinter22 tight photon with pt > 220, \|η_SC\| < 1.4442; no veto lepton |
-
-MET filters (`MET_FILTERS`): goodVertices, globalSuperTightHalo2016Filter, EcalDeadCellTriggerPrimitiveFilter,
-BadPFMuonFilter, BadPFMuonDzFilter, hfNoisyHitsFilter, eeBadScFilter, ecalBadCalibFilter.
+- `addCommon` creates the object collections from `selection/objects` (PAT string cuts; source muons, electrons or photons), plus `goodVertexFlag` and `metFilterFlag`.
+- `addChannel(process, name, spec, inputs, suffix='')` builds one channel: `<ch>Trigger`, `<ch>Sel`, `<ch>` (the AND of trigger, vertex, MET filters and selection) and `<ch>Filter`. The channel type is `dilepton`, `leptonMET` or `singleObject`, so a new channel needs only a YAML entry. Threshold variations: call it again with a modified spec and a `suffix`.
+- `addSelection` adds every channel, `anyChannel` / `anyChannelFilter`, and NanoAOD tables: `Selection_*` flags and `<ch>Boson` / `<ch>Objects`.
+- `selectedObjects(selection, channels)` gives the InputTags of the channels' selected objects, for jet cleaning.
 
 ## Tests
 - `scram b runtests` runs `testSRothmanEventSelection` (logic) and `testSRothmanEventSelectionModules` (TestProcessor).
 - Real-data validation:
-  `cmsRun test/validation/validateSelection_cfg.py inputFiles=file:... outputFile=sel.root maxEvents=2000`, then
+  `cmsRun test/validation/validateSelection_cfg.py config=<analysis yaml> inputFiles=file:... outputFile=sel.root maxEvents=2000`, then
   `python3 test/validation/checkSelection.py sel_numEvent2000.root <same MiniAOD>`. The second step compares Z→μμ with an independent FWLite selection.

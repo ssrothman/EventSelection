@@ -1,33 +1,20 @@
 """Event selections as bool flags (one cmsRun handles all channels) plus optional filters.
 
+Every value comes from the caller's configuration dict (see simulation/configs/default.yaml in boostedV);
+there are no physics defaults here.
+
 Each channel <ch> provides:
-  <ch>Sel     channel-specific selector (bool + selected objects, instances 'boson'/'leptons' or 'objects')
-  <ch>        FlagCombiner: AND of trigger, good vertex, MET filters and <ch>Sel
-  <ch>Filter  EventFlagFilter on <ch> (not in the task; put it on a Path to filter)
-Defaults below are proposals for Run-3 MiniAOD (Summer22EE); every cut is a parameter.
+  <ch>Trigger  TriggerFlagProducer on the channel's HLT paths
+  <ch>Sel      selector (bool + selected objects, instances 'boson'/'leptons' or 'objects')
+  <ch>         FlagCombiner: AND of <ch>Trigger, goodVertexFlag, metFilterFlag and <ch>Sel
+  <ch>Filter   EventFlagFilter on <ch> (not in the task; put it on a Path to filter)
 """
 import FWCore.ParameterSet.Config as cms
 
-# Run-3 MET filters (the Flag_* paths in the PAT TriggerResults).
-MET_FILTERS = ['Flag_goodVertices', 'Flag_globalSuperTightHalo2016Filter', 'Flag_EcalDeadCellTriggerPrimitiveFilter',
-               'Flag_BadPFMuonFilter', 'Flag_BadPFMuonDzFilter', 'Flag_hfNoisyHitsFilter', 'Flag_eeBadScFilter',
-               'Flag_ecalBadCalibFilter']
-
-_EB_EE_GAP = '(abs(superCluster().eta()) < 1.4442 || abs(superCluster().eta()) > 1.566)'
-OBJECT_CUTS = dict(
-    tightMuons="pt > 15 && abs(eta) < 2.4 && passed('CutBasedIdTight') && passed('PFIsoTight')",
-    vetoMuons="pt > 10 && abs(eta) < 2.4 && passed('CutBasedIdLoose') && passed('PFIsoLoose')",
-    tightElectrons="pt > 15 && abs(superCluster().eta()) < 2.5 && " + _EB_EE_GAP +
-                   " && electronID('cutBasedElectronID-RunIIIWinter22-V1-tight') > 0.5",
-    vetoElectrons="pt > 10 && abs(superCluster().eta()) < 2.5 && " + _EB_EE_GAP +
-                  " && electronID('cutBasedElectronID-RunIIIWinter22-V1-veto') > 0.5",
-    tightPhotons="pt > 220 && abs(superCluster().eta()) < 1.4442 && "
-                 "photonID('cutBasedPhotonID-RunIIIWinter22-122X-V1-tight') > 0.5",
-)
-TRIGGERS = dict(Zmumu=['HLT_IsoMu24_v*'], Zee=['HLT_Ele32_WPTight_Gsf_v*'], Wmunu=['HLT_IsoMu24_v*'],
-                Wenu=['HLT_Ele32_WPTight_Gsf_v*'], Hadronic=['HLT_AK8PFJet500_v*', 'HLT_PFHT1050_v*'],
-                GammaJets=['HLT_Photon200_v*'])
-CHANNELS = ('Zmumu', 'Zee', 'Wmunu', 'Wenu', 'Hadronic', 'GammaJets')
+_SELECTORS = dict(muons='PATMuonSelector', electrons='PATElectronSelector', photons='PATPhotonSelector')
+# Instance labels of each channel type's products.
+OBJECT_INSTANCE = dict(dilepton='leptons', leptonMET='leptons', singleObject='objects')
+BOSON_INSTANCE = dict(dilepton='boson', leptonMET='boson', singleObject='objects')
 
 
 def _add(process, task, label, module):
@@ -37,105 +24,90 @@ def _add(process, task, label, module):
     return label
 
 
-def addCommon(process, task=None, suffix='', objectCuts=None, metFilterProcess='PAT', metFilters=None):
-    """Object collections, good-vertex flag and MET-filter flag. objectCuts overrides OBJECT_CUTS entries."""
-    unknown = set(objectCuts or {}) - set(OBJECT_CUTS)
-    if unknown:
-        raise ValueError('unknown object collections: %s' % sorted(unknown))
-    cuts = dict(OBJECT_CUTS, **(objectCuts or {}))
-    sel = dict(Muons=('PATMuonSelector', 'slimmedMuons'), Electrons=('PATElectronSelector', 'slimmedElectrons'),
-               Photons=('PATPhotonSelector', 'slimmedPhotons'))
-    for name, cut in cuts.items():
-        kind = [k for k in sel if name.endswith(k)][0]
+def addCommon(process, sel, inputs, task=None, suffix=''):
+    """Object collections (sel['objects']: {label: {source: muons|electrons|photons, cut: string}}),
+    goodVertexFlag (sel['vertex']) and metFilterFlag (sel['metFilters'])."""
+    for name, o in sel['objects'].items():
         _add(process, task, name + suffix,
-             cms.EDFilter(sel[kind][0], src=cms.InputTag(sel[kind][1]), cut=cms.string(cut), filter=cms.bool(False)))
-    _add(process, task, 'goodVertexFlag' + suffix, cms.EDProducer('VertexFlagProducer'))
+             cms.EDFilter(_SELECTORS[o['source']], src=cms.InputTag(inputs[o['source']]), cut=cms.string(o['cut']),
+                          filter=cms.bool(False)))
+    v = sel['vertex']
+    _add(process, task, 'goodVertexFlag' + suffix,
+         cms.EDProducer('VertexFlagProducer', src=cms.InputTag(inputs['vertices']), ndofMin=cms.double(v['ndofMin']),
+                        absZMax=cms.double(v['absZMax']), rhoMax=cms.double(v['rhoMax'])))
     _add(process, task, 'metFilterFlag' + suffix,
-         cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', metFilterProcess),
-                        paths=cms.vstring(*(metFilters or MET_FILTERS)), requireAll=cms.bool(True),
+         cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', inputs['metFilterProcess']),
+                        paths=cms.vstring(*sel['metFilters']), requireAll=cms.bool(True),
                         allowMissing=cms.bool(False)))
 
 
-def addTrigger(process, label, paths, task=None, allowMissing=False):
-    return _add(process, task, label,
-                cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', 'HLT'),
-                               paths=cms.vstring(*paths), requireAll=cms.bool(False),
-                               allowMissing=cms.bool(allowMissing)))
-
-
-def addChannel(process, channel, task=None, suffix='', triggers=None, **cuts):
-    """Adds one channel; cuts override the selector parameters (threshold variations: call again with a suffix).
-    Requires addCommon(process, suffix=suffix)."""
+def addChannel(process, name, ch, inputs, task=None, suffix=''):
+    """One channel from its spec ch (keys depend on ch['type']); requires addCommon with the same suffix.
+    Threshold variations: call again with a modified spec and a suffix."""
     s = suffix
-    trig = addTrigger(process, channel + 'Trigger' + s, triggers or TRIGGERS[channel], task)
-    vetoLeptons = cms.VInputTag('vetoMuons' + s, 'vetoElectrons' + s)
-    if channel in ('Zmumu', 'Zee'):
-        lep = 'tightMuons' if channel == 'Zmumu' else 'tightElectrons'
-        defaults = dict(leadPtMin=26.0, subleadPtMin=15.0) if channel == 'Zmumu' else dict(leadPtMin=35.0, subleadPtMin=15.0)
-        p = cms.EDProducer('DileptonSelector', src=cms.InputTag(lep + s), massMin=cms.double(71.0),
-                           massMax=cms.double(111.0))
-        params = dict(defaults, **cuts)
-    elif channel in ('Wmunu', 'Wenu'):
-        lep = 'tightMuons' if channel == 'Wmunu' else 'tightElectrons'
-        p = cms.EDProducer('LeptonMETSelector', src=cms.InputTag(lep + s), met=cms.InputTag('slimmedMETsPuppi'),
-                           vetoSrcs=vetoLeptons)
-        params = dict(dict(ptMin=30.0 if channel == 'Wmunu' else 35.0, metMin=40.0, mtMin=50.0), **cuts)
-    elif channel == 'GammaJets':
-        p = cms.EDProducer('SingleObjectEventSelector', src=cms.InputTag('tightPhotons' + s), vetoSrcs=vetoLeptons)
-        params = dict(cuts)
-    elif channel == 'Hadronic':
-        # Passes with no veto leptons and no tight photons.
-        p = cms.EDProducer('SingleObjectEventSelector', src=cms.InputTag('tightPhotons' + s),
-                           vetoSrcs=vetoLeptons, nMin=cms.uint32(0), nMax=cms.uint32(0))
-        params = dict(cuts)
+    trig = _add(process, task, name + 'Trigger' + s,
+                cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', inputs['hltProcess']),
+                               paths=cms.vstring(*ch['triggers']), requireAll=cms.bool(False),
+                               allowMissing=cms.bool(ch['allowMissingTriggers'])))
+    t = ch['type']
+    vetoes = cms.VInputTag(*[v + s for v in ch['vetoes']]) if t != 'dilepton' else None
+    if t == 'dilepton':
+        p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s),
+                           leadPtMin=cms.double(ch['leadPtMin']), subleadPtMin=cms.double(ch['subleadPtMin']),
+                           massMin=cms.double(ch['massMin']), massMax=cms.double(ch['massMax']),
+                           oppositeCharge=cms.bool(ch['oppositeCharge']), targetMass=cms.double(ch['targetMass']))
+    elif t == 'leptonMET':
+        p = cms.EDProducer('LeptonMETSelector', src=cms.InputTag(ch['objects'] + s), met=cms.InputTag(inputs['met']),
+                           vetoSrcs=vetoes, ptMin=cms.double(ch['ptMin']), metMin=cms.double(ch['metMin']),
+                           mtMin=cms.double(ch['mtMin']))
+    elif t == 'singleObject':
+        p = cms.EDProducer('SingleObjectEventSelector', src=cms.InputTag(ch['objects'] + s), vetoSrcs=vetoes,
+                           nMin=cms.uint32(ch['nMin']), nMax=cms.uint32(ch['nMax']))
     else:
-        raise ValueError('unknown channel ' + channel)
-    for k, v in params.items():
-        setattr(p, k, cms.uint32(v) if k in ('nMin', 'nMax') else cms.double(v))
-    sel = _add(process, task, channel + 'Sel' + s, p)
-    flag = _add(process, task, channel + s,
+        raise ValueError('channel %s: unknown type %s' % (name, t))
+    sel = _add(process, task, name + 'Sel' + s, p)
+    flag = _add(process, task, name + s,
                 cms.EDProducer('FlagCombiner', mode=cms.string('and'),
                                srcs=cms.VInputTag(trig, 'goodVertexFlag' + s, 'metFilterFlag' + s, sel)))
-    setattr(process, channel + s + 'Filter', cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(flag), mode=cms.string('and')))
+    setattr(process, name + s + 'Filter', cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(flag), mode=cms.string('and')))
     return flag
 
 
-def addAllChannels(process, task=None, suffix='', tableName='Selection', withTables=True,
-                   objectCuts=None, metFilters=None, metFilterProcess='PAT', triggers=None, channelCuts=None):
-    """All channels, the 'anyChannel' OR flag/filter and, optionally, NanoAOD tables:
+def addSelection(process, sel, inputs, task=None, suffix='', tableName='Selection', withTables=True):
+    """All channels in sel['channels'], the 'anyChannel' OR flag/filter and, optionally, NanoAOD tables:
     <tableName> (one bool per channel and its components) and <ch>Boson / <ch>Objects candidate tables.
-    Overrides: objectCuts {collection: cut string} (see OBJECT_CUTS), metFilters [Flag_* names],
-    triggers {channel: [path globs]} (see TRIGGERS), channelCuts {channel: {selector parameter: value}}."""
-    triggers = dict(triggers or {})
-    channelCuts = dict(channelCuts or {})
-    unknown = (set(triggers) | set(channelCuts)) - set(CHANNELS)
-    if unknown:
-        raise ValueError('unknown channels: %s' % sorted(unknown))
-    addCommon(process, task, suffix, objectCuts=objectCuts, metFilterProcess=metFilterProcess, metFilters=metFilters)
-    flags = [addChannel(process, ch, task, suffix, triggers=triggers.get(ch), **channelCuts.get(ch, {}))
-             for ch in CHANNELS]
-    _add(process, task, 'anyChannel' + suffix, cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*flags)))
+    Returns {channel: flag label}."""
+    addCommon(process, sel, inputs, task, suffix)
+    flags = {name: addChannel(process, name, ch, inputs, task, suffix) for name, ch in sel['channels'].items()}
+    _add(process, task, 'anyChannel' + suffix,
+         cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*flags.values())))
     setattr(process, 'anyChannel' + suffix + 'Filter',
-            cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(*flags), mode=cms.string('or')))
+            cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(*flags.values()), mode=cms.string('or')))
     if not withTables:
         return flags
     names, srcs = ['goodVertex', 'metFilters'], ['goodVertexFlag' + suffix, 'metFilterFlag' + suffix]
-    for ch in CHANNELS:
+    for ch in flags:
         names += [ch, ch + 'Trigger', ch + 'Sel']
         srcs += [ch + suffix, ch + 'Trigger' + suffix, ch + 'Sel' + suffix]
     _add(process, task, 'selectionFlags' + suffix + 'Table',
          cms.EDProducer('EventFlagTableProducer', name=cms.string(tableName + suffix), names=cms.vstring(*names),
                         srcs=cms.VInputTag(*srcs)))
-    for ch in CHANNELS:
-        inst = 'boson' if ch[0] in 'ZW' else 'objects'
+
+    def var(expr, typ):
+        return cms.PSet(expr=cms.string(expr), type=cms.string(typ), doc=cms.string(expr), precision=cms.int32(-1))
+
+    for ch, spec in sel['channels'].items():
+        inst = BOSON_INSTANCE[spec['type']]
         _add(process, task, ch + 'Candidates' + suffix + 'Table',
              cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(ch + 'Sel' + suffix, inst),
                             name=cms.string(ch + ('Boson' if inst == 'boson' else 'Objects') + suffix),
                             doc=cms.string(ch + ' selected candidate'), singleton=cms.bool(False),
                             extension=cms.bool(False), cut=cms.string(''),
-                            variables=cms.PSet(pt=cms.PSet(expr=cms.string('pt'), type=cms.string('float'), doc=cms.string('pt'), precision=cms.int32(-1)),
-                                               eta=cms.PSet(expr=cms.string('eta'), type=cms.string('float'), doc=cms.string('eta'), precision=cms.int32(-1)),
-                                               phi=cms.PSet(expr=cms.string('phi'), type=cms.string('float'), doc=cms.string('phi'), precision=cms.int32(-1)),
-                                               mass=cms.PSet(expr=cms.string('mass'), type=cms.string('float'), doc=cms.string('mass'), precision=cms.int32(-1)),
-                                               charge=cms.PSet(expr=cms.string('charge'), type=cms.string('int'), doc=cms.string('charge'), precision=cms.int32(-1)))))
+                            variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
+                                               mass=var('mass', 'float'), charge=var('charge', 'int'))))
     return flags
+
+
+def selectedObjects(sel, channels, suffix=''):
+    """InputTag strings of the selected objects of the given channels (e.g. for jet cleaning)."""
+    return ['%sSel%s:%s' % (c, suffix, OBJECT_INSTANCE[sel['channels'][c]['type']]) for c in channels]
