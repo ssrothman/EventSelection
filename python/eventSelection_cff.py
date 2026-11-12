@@ -11,6 +11,7 @@ Gen level (labels prefixed 'gen'): Rivet particle-level objects (genParticleLeve
 Selected objects are in <prefix><ch>Sel with instance 'leptons' (dilepton, leptonMET) or 'objects' (singleObject).
 """
 import FWCore.ParameterSet.Config as cms
+from SRothman.EventSelection.muonHighPtRun3_cff import highPtPSet
 
 LEVELS = ('reco', 'gen')
 PREFIX = dict(reco='', gen='gen')
@@ -54,17 +55,21 @@ def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
     lepton dressing (reco['dressing']['mode']: none | fsr | cone), goodVertexFlag (reco['vertex']) and
     metFilterFlag (reco['metFilters']). With dressing, a lepton collection <name> is <name>Undressed (PAT `cut`),
     then <name>Dressed, then `dressedCut` on the dressed leptons; photons are never dressed.
-    With reco['muonCorrections']['apply'], every muon consumer reads correctedMuons (MUO POG scale and resolution
-    corrections) instead of inputs['muons']."""
+    Every muon consumer reads correctedMuons (MuonCorrectionProducer: momentum assignment, userInt highPtRegime and,
+    with reco['muonCorrections']['apply'], the MUO POG corrections) instead of inputs['muons'] if it is needed: with
+    apply, a non-PF momentum, or muon scale factors in MC."""
     mc = reco['muonCorrections']
-    if mc['apply']:
+    if mc['apply'] or mc['momentum'] != 'pf' or (isMC and reco['muonScaleFactors']):
+        hp = mc['highPt']
         _add(process, task, 'correctedMuons' + suffix,
-             cms.EDProducer('MuonCorrectionProducer', src=cms.InputTag(inputs['muons']),
-                            correctionFile=cms.string(mc['correctionFile']), isData=cms.bool(not isMC),
+             cms.EDProducer('MuonCorrectionProducer', src=cms.InputTag(inputs['muons']), isData=cms.bool(not isMC),
+                            momentum=cms.string(mc['momentum']), regimeThreshold=cms.double(mc['regimeThreshold']),
+                            applyCorrections=cms.bool(mc['apply']), correctionFile=cms.string(mc['correctionFile']),
                             lowPtThreshold=cms.double(mc['lowPtThreshold']),
                             highPtThreshold=cms.double(mc['highPtThreshold']),
                             resolutionVariationK=cms.string(mc['resolutionVariationK']),
-                            variation=cms.string(mc['variation'])))
+                            variation=cms.string(mc['variation']),
+                            highPt=highPtPSet(hp['era'], hp['ptMin'], hp['kappaTarget'])))
         inputs = dict(inputs, muons='correctedMuons' + suffix)
     d = reco['dressing']
     if d['mode'] == 'fsr':
@@ -184,6 +189,27 @@ def _tables(process, level, cfg, flags, task, suffix):
                                                mass=var('mass', 'float'), charge=var('charge', 'int'))))
 
 
+def muonSFLabel(channel, suffix=''):
+    """Label of the module whose double product is the channel's muon SF event weight."""
+    return channel + 'MuonSF' + suffix + 'Table'
+
+
+def addMuonScaleFactors(process, reco, inputs, task=None, suffix=''):
+    """MC only: a MuonSFProducer per channel of reco['muonScaleFactors'], on the channel's selected leptons."""
+    for ch, terms in reco['muonScaleFactors'].items():
+        _add(process, task, muonSFLabel(ch, suffix),
+             cms.EDProducer('MuonSFProducer', selected=cms.InputTag(label('reco', ch) + suffix),
+                            src=cms.InputTag(label('reco', ch) + 'Sel' + suffix, 'leptons'),
+                            muons=cms.InputTag('correctedMuons' + suffix), name=cms.string(ch + 'MuonSF' + suffix),
+                            matchDeltaR=cms.double(0.1),
+                            triggerResults=cms.InputTag('TriggerResults', '', inputs['hltProcess']),
+                            triggerObjects=cms.InputTag(inputs['triggerObjects']), triggerMatchDeltaR=cms.double(0.1),
+                            terms=cms.VPSet(*[cms.PSet(name=cms.string(t['name']), regime=cms.string(t['regime']),
+                                                       file=cms.string(t['file']), key=cms.string(t['key']),
+                                                       trigger=cms.bool(t['trigger']), paths=cms.vstring(t['paths']),
+                                                       outOfRange=cms.string(t['outOfRange'])) for t in terms])))
+
+
 def addSelection(process, sel, inputs, levels, isMC, task=None, suffix='', withTables=True):
     """Builds the reco selection and, in MC, the gen selection (both always, so that both levels' flags and objects
     exist), per-level '<prefix>anyChannel' OR flags, and 'anySelected' = OR over `levels` with 'anySelectedFilter'.
@@ -204,6 +230,8 @@ def addSelection(process, sel, inputs, levels, isMC, task=None, suffix='', withT
              cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*flags[level].values())))
         if withTables:
             _tables(process, level, cfg, flags[level], task, suffix)
+    if isMC:
+        addMuonScaleFactors(process, sel['reco'], inputs, task, suffix)
     anyFlags = [label(l, 'anyChannel') + suffix for l in levels]
     _add(process, task, 'anySelected' + suffix,
          cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*anyFlags)))
