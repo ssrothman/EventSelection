@@ -57,4 +57,19 @@ namespace evsel {
     return n;
   }
 
+  std::vector<int> assignToNearest(const std::vector<Obj>& leptons, const std::vector<Obj>& photons, double cone) {
+    std::vector<int> out(photons.size(), -1);
+    for (std::size_t g = 0; g < photons.size(); ++g) {
+      double best = cone;
+      for (std::size_t l = 0; l < leptons.size(); ++l) {
+        const double dR = deltaR(leptons[l], photons[g]);
+        if (dR < best) {
+          best = dR;
+          out[g] = static_cast<int>(l);
+        }
+      }
+    }
+    return out;
+  }
+
 }  // namespace evsel

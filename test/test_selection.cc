@@ -52,3 +52,15 @@ TEST_CASE("countExtra ignores the selected objects themselves", "[selection]") {
   CHECK(countExtra({lep(40, 0.5, 1.0, 1)}, sel) == 0);
   CHECK(countExtra(veto, {}) == 2);
 }
+
+TEST_CASE("assignToNearest gives each photon to the nearest lepton inside the cone", "[selection][dressing]") {
+  const std::vector<Obj> leps{lep(40, 0.0, 0.0, -1), lep(30, 0.0, 0.15, 1)};
+  const std::vector<Obj> photons{lep(2, 0.0, 0.05, 0),    // dR 0.05 to lep 0, 0.10 to lep 1 -> 0
+                                 lep(2, 0.0, 0.11, 0),    // dR 0.11 to lep 0, 0.04 to lep 1 -> 1
+                                 lep(2, 0.3, 0.0, 0),     // outside both cones -> -1
+                                 lep(2, 0.0, 0.0999, 0)}; // 0.0999 vs 0.0501 -> 1
+  CHECK(assignToNearest(leps, photons, 0.1) == std::vector<int>{0, 1, -1, 1});
+  CHECK(assignToNearest(leps, photons, 0.01) == std::vector<int>{-1, -1, -1, -1});
+  CHECK(assignToNearest({}, photons, 0.1) == std::vector<int>{-1, -1, -1, -1});
+  CHECK(assignToNearest(leps, {}, 0.1).empty());
+}

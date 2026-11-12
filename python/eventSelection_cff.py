@@ -31,13 +31,58 @@ def _add(process, task, label, module):
     return label
 
 
-def addRecoCommon(process, reco, inputs, task=None, suffix=''):
-    """Reco object collections (reco['objects']: {label: {source: muons|electrons|photons, cut}}),
-    goodVertexFlag (reco['vertex']) and metFilterFlag (reco['metFilters'])."""
+def _dressing(process, task, suffix, name, o, d, inputs):
+    """<name>Undressed (PAT cut) -> <name>Dressed (DressedLeptonProducer) -> <name> (dressedCut)."""
+    _add(process, task, name + 'Undressed' + suffix,
+         cms.EDFilter(_PAT_SELECTORS[o['source']], src=cms.InputTag(inputs[o['source']]), cut=cms.string(o['cut']),
+                      filter=cms.bool(False)))
+    c = d['cone']
+    fsrIndex = 'muFsrIndex' if o['source'] == 'muons' else 'eleFsrIndex'
+    _add(process, task, name + 'Dressed' + suffix,
+         cms.EDProducer('DressedLeptonProducer', src=cms.InputTag(name + 'Undressed' + suffix),
+                        mode=cms.string(d['mode']), fsrPhotons=cms.InputTag('leptonFSRphotons' + suffix),
+                        fsrIndex=cms.InputTag('leptonFSRphotons' + suffix, fsrIndex),
+                        originals=cms.InputTag(inputs[o['source']]), pfCandidates=cms.InputTag(inputs['pfCandidates']),
+                        footprintElectrons=cms.InputTag(inputs['electrons']), coneSize=cms.double(c['coneSize']),
+                        photonPtMin=cms.double(c['photonPtMin']), applyPuppiWeights=cms.bool(c['applyPuppiWeights'])))
+    _add(process, task, name + suffix,
+         cms.EDFilter('CandPtrSelector', src=cms.InputTag(name + 'Dressed' + suffix), cut=cms.string(o['dressedCut'])))
+
+
+def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
+    """Reco object collections (reco['objects']: {label: {source: muons|electrons|photons, cut, dressedCut}}),
+    lepton dressing (reco['dressing']['mode']: none | fsr | cone), goodVertexFlag (reco['vertex']) and
+    metFilterFlag (reco['metFilters']). With dressing, a lepton collection <name> is <name>Undressed (PAT `cut`),
+    then <name>Dressed, then `dressedCut` on the dressed leptons; photons are never dressed.
+    With reco['muonCorrections']['apply'], every muon consumer reads correctedMuons (MUO POG scale and resolution
+    corrections) instead of inputs['muons']."""
+    mc = reco['muonCorrections']
+    if mc['apply']:
+        _add(process, task, 'correctedMuons' + suffix,
+             cms.EDProducer('MuonCorrectionProducer', src=cms.InputTag(inputs['muons']),
+                            correctionFile=cms.string(mc['correctionFile']), isData=cms.bool(not isMC),
+                            lowPtThreshold=cms.double(mc['lowPtThreshold']),
+                            highPtThreshold=cms.double(mc['highPtThreshold']),
+                            resolutionVariationK=cms.string(mc['resolutionVariationK']),
+                            variation=cms.string(mc['variation'])))
+        inputs = dict(inputs, muons='correctedMuons' + suffix)
+    d = reco['dressing']
+    if d['mode'] == 'fsr':
+        f = d['fsr']
+        _add(process, task, 'leptonFSRphotons' + suffix,
+             cms.EDProducer('LeptonFSRProducer', packedPFCandidates=cms.InputTag(inputs['pfCandidates']),
+                            slimmedElectrons=cms.InputTag(inputs['electrons']), muons=cms.InputTag(inputs['muons']),
+                            electrons=cms.InputTag(inputs['electrons']), muonPtMin=cms.double(f['muonPtMin']),
+                            muonEtaMax=cms.double(f['muonEtaMax']), elePtMin=cms.double(f['elePtMin']),
+                            eleEtaMax=cms.double(f['eleEtaMax']), photonPtMin=cms.double(f['photonPtMin']),
+                            deltaROverEt2Max=cms.double(f['deltaROverEt2Max']), isolation=cms.double(f['isolation'])))
     for name, o in reco['objects'].items():
-        _add(process, task, name + suffix,
-             cms.EDFilter(_PAT_SELECTORS[o['source']], src=cms.InputTag(inputs[o['source']]),
-                          cut=cms.string(o['cut']), filter=cms.bool(False)))
+        if d['mode'] != 'none' and o['source'] in ('muons', 'electrons'):
+            _dressing(process, task, suffix, name, o, d, inputs)
+        else:
+            _add(process, task, name + suffix,
+                 cms.EDFilter(_PAT_SELECTORS[o['source']], src=cms.InputTag(inputs[o['source']]),
+                              cut=cms.string(o['cut']), filter=cms.bool(False)))
     v = reco['vertex']
     _add(process, task, 'goodVertexFlag' + suffix,
          cms.EDProducer('VertexFlagProducer', src=cms.InputTag(inputs['vertices']), ndofMin=cms.double(v['ndofMin']),
@@ -146,7 +191,7 @@ def addSelection(process, sel, inputs, levels, isMC, task=None, suffix='', withT
     built = ['reco', 'gen'] if isMC else ['reco']
     if not levels or any(l not in built for l in levels):
         raise ValueError('selection levels %s not available (built: %s)' % (list(levels), built))
-    addRecoCommon(process, sel['reco'], inputs, task, suffix)
+    addRecoCommon(process, sel['reco'], inputs, isMC, task, suffix)
     if isMC:
         addGenCommon(process, sel['gen'], inputs, task, suffix)
     flags = {}

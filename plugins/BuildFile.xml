@@ -5,6 +5,8 @@
 <use name="DataFormats/Common"/>
 <use name="DataFormats/Candidate"/>
 <use name="DataFormats/VertexReco"/>
+<use name="DataFormats/PatCandidates"/>
+<use name="DataFormats/TrackReco"/>
 <use name="DataFormats/NanoAOD"/>
 <use name="SRothman/EventSelection"/>
 <library file="*.cc" name="SRothmanEventSelectionPlugins">

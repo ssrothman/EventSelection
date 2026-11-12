@@ -1,3 +1,6 @@
+<use name="correctionlib"/>
+<use name="rootmath"/>
+<use name="boost_header"/>
 <export>
   <lib name="1"/>
 </export>

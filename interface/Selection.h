@@ -33,6 +33,10 @@ namespace evsel {
   // (vetoes that are not the selected objects themselves).
   std::size_t countExtra(const std::vector<Obj>& others, const std::vector<Obj>& selected, double dRmin = 0.01);
 
+  // Cone dressing: index of the object in `leptons` nearest to each photon within dR < cone, or -1.
+  // A photon is assigned to at most one lepton.
+  std::vector<int> assignToNearest(const std::vector<Obj>& leptons, const std::vector<Obj>& photons, double cone);
+
 }  // namespace evsel
 
 #endif

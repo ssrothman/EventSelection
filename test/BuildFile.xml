@@ -8,3 +8,8 @@
   <use name="DataFormats/Candidate"/>
   <use name="DataFormats/NanoAOD"/>
 </bin>
+<bin name="testSRothmanEventSelectionMuonScaRe" file="test_muonscare.cc">
+  <use name="catch2"/>
+  <use name="correctionlib"/>
+  <use name="SRothman/EventSelection"/>
+</bin>
