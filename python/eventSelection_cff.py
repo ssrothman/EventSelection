@@ -136,7 +136,7 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     s, lab = suffix, label(level, name)
     t = ch['type']
     vetoes = cms.VInputTag(*[v + s for v in ch['vetoes']]) if t != 'dilepton' else None
-    met = inputs['met'] if level == 'reco' else 'genParticleLevel%s:mets' % s
+    met = metLabel(level, inputs, s)
     if t == 'dilepton':
         p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s),
                            leadPtMin=cms.double(ch['leadPtMin']), subleadPtMin=cms.double(ch['subleadPtMin']),
@@ -164,7 +164,11 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     return flag
 
 
-def _tables(process, level, cfg, flags, task, suffix):
+def metLabel(level, inputs, suffix=''):
+    return inputs['met'] if level == 'reco' else 'genParticleLevel%s:mets' % suffix
+
+
+def _tables(process, level, cfg, flags, inputs, task, suffix):
     names, srcs = ([], []) if level == 'gen' else (['goodVertex', 'metFilters'], ['goodVertexFlag' + suffix, 'metFilterFlag' + suffix])
     for ch in flags:
         names += [ch, ch + 'Sel'] + ([ch + 'Trigger'] if level == 'reco' else [])
@@ -187,6 +191,24 @@ def _tables(process, level, cfg, flags, task, suffix):
                             extension=cms.bool(False), cut=cms.string(''),
                             variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
                                                mass=var('mass', 'float'), charge=var('charge', 'int'))))
+        if OBJECT_INSTANCE[spec['type']] == 'leptons':
+            _add(process, task, label(level, ch) + 'Leptons' + suffix + 'Table',
+                 cms.EDProducer('SimpleCandidateFlatTableProducer',
+                                src=cms.InputTag(label(level, ch) + 'Sel' + suffix, 'leptons'),
+                                name=cms.string(('Gen' if level == 'gen' else '') + ch + 'Leptons' + suffix),
+                                doc=cms.string('%s %s selected leptons' % (level, ch)), singleton=cms.bool(False),
+                                extension=cms.bool(False), cut=cms.string(''),
+                                variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
+                                                   mass=var('mass', 'float'), charge=var('charge', 'int'),
+                                                   pdgId=var('pdgId', 'int'))))
+    if any(spec['type'] == 'leptonMET' for spec in cfg['channels'].values()):
+        met = metLabel(level, inputs, suffix)
+        _add(process, task, label(level, 'met') + suffix + 'Table',
+             cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(met),
+                            name=cms.string(('GenMET' if level == 'gen' else 'MET') + suffix),
+                            doc=cms.string('MET used by the %s leptonMET channels (%s)' % (level, met)),
+                            singleton=cms.bool(True), extension=cms.bool(False),
+                            variables=cms.PSet(pt=var('pt', 'float'), phi=var('phi', 'float'))))
 
 
 def muonSFLabel(channel, suffix=''):
@@ -229,7 +251,7 @@ def addSelection(process, sel, inputs, levels, isMC, task=None, suffix='', withT
         _add(process, task, anyLabel,
              cms.EDProducer('FlagCombiner', mode=cms.string('or'), srcs=cms.VInputTag(*flags[level].values())))
         if withTables:
-            _tables(process, level, cfg, flags[level], task, suffix)
+            _tables(process, level, cfg, flags[level], inputs, task, suffix)
     if isMC:
         addMuonScaleFactors(process, sel['reco'], inputs, task, suffix)
     anyFlags = [label(l, 'anyChannel') + suffix for l in levels]

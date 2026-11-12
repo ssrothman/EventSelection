@@ -43,7 +43,7 @@ Both levels use the same selector modules and channel types (`dilepton`, `lepton
 - `addSelection(process, selection, inputs, levels, isMC)` builds reco and, in MC, gen. Both levels are always built so their flags and selected objects exist.
   - Per level it adds the OR of that level's channels, `anyChannel` / `genAnyChannel`.
   - `anySelected` / `anySelectedFilter` is the OR over `levels`.
-  - NanoAOD tables: `Selection_*` and `GenSelection_*` flags, and `<ch>Boson`/`<ch>Objects` and `Gen<ch>Boson`/`Gen<ch>Objects` candidates.
+  - NanoAOD tables: `Selection_*` and `GenSelection_*` flags; `<ch>Boson`/`<ch>Objects` and `Gen<ch>Boson`/`Gen<ch>Objects` candidates; the selected leptons of dilepton and leptonMET channels, `<ch>Leptons`/`Gen<ch>Leptons` (pt, eta, phi, mass, charge, pdgId; after dressing and muon corrections; empty unless `<ch>Sel` passed, which does not include the trigger); and, with a leptonMET channel, the MET it uses, `MET`/`GenMET` (pt, phi).
 - `addChannel(process, level, name, spec, inputs, suffix='')` builds one channel; for threshold variations, call it again with a `suffix`.
 - `selectedObjects(levelCfg, level, channels)` gives the InputTags of a level's selected objects, for jet cleaning.
 - `label(level, name)` gives a module's label at a level.
