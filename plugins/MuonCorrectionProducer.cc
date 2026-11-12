@@ -34,8 +34,8 @@ public:
     edm::ParameterSetDescription desc;
     desc.add<edm::InputTag>("src", edm::InputTag("slimmedMuons"));
     desc.add<std::string>("correctionFile",
-                          "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/MUO/2022_Summer22EE/"
-                          "muon_scalesmearing.json.gz");
+                          "/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/"
+                          "latest/muon_scalesmearing.json.gz");
     desc.add<bool>("isData", false);
     desc.add<double>("lowPtThreshold", 26.0)->setComment("muons below this pt are not corrected (POG default)");
     desc.add<double>("highPtThreshold", 200.0)->setComment("muons above this pt are not corrected (stated validity)");
