@@ -1,5 +1,5 @@
 """Checks validateHighPtMuons_cfg.py output with an independent implementation of the high-pT muon recipe:
-regime and TuneP momentum per mode; exact kappa_b shifts (data and MC, both targets, scale variations) reusing the
+regime, TuneP momentum and originalPt per mode; exact kappa_b shifts (data and MC, both targets, scale variations) reusing the
 nominal smearing's standard-normal numbers; and the nominal and systematic smearing pulls ~ N(0, 1).
 Usage: python3 checkHighPtMuons.py hp.root <era>"""
 import sys
@@ -52,6 +52,11 @@ print('muons %d, hybrid high regime %d, corrected (TuneP >= 200, |eta| < 2.4) %d
 report('there are corrected high-pT muons with and without smearing',
        corrected.sum() > 50 and (corrected & (f > 0)).sum() > 20 and (corrected & (f == 0)).sum() > 0 if T['smearBarrel'] == 0
        else corrected.sum() > 50)
+
+# originalPt is a float userFloat, so it equals the input pt rounded to float.
+for v in ('PF', 'TuneP', 'Hybrid', 'MCnominal', 'DataTargetData'):
+    report('%s originalPt is the input pt' % v, np.array_equal(flat('MuCorr%s_originalPt' % v), pt.astype(np.float32)))
+report('MCnominal changes pt where originalPt does not', (got('MCnominal')[0] != pt).sum() > 50)
 
 for v, exp_pt, exp_reg in (('PF', pt, 0 * pt), ('TuneP', tuneP, 1 + 0 * pt),
                            ('Hybrid', np.where(hybridHigh, tuneP, pt), hybridHigh)):

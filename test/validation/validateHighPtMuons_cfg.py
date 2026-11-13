@@ -1,7 +1,7 @@
 """Runs MuonCorrectionProducer in the momentum modes and high-pT variants and writes, per muon (double precision), the
 inputs and the outputs. Checked by checkHighPtMuons.py.
 Usage: cmsRun validateHighPtMuons_cfg.py era=2022postEE inputFiles=file:... outputFile=hp.root maxEvents=N
-Tables: Mu (slimmedMuons: pt, eta, phi, charge, tunePPt) and MuCorr<variant> (pt, highPtRegime; same order)."""
+Tables: Mu (slimmedMuons: pt, eta, phi, charge, tunePPt) and MuCorr<variant> (pt, highPtRegime, originalPt; same order)."""
 import FWCore.ParameterSet.Config as cms
 from FWCore.ParameterSet.VarParsing import VarParsing
 from SRothman.EventSelection.muonHighPtRun3_cff import highPtPSet
@@ -53,7 +53,8 @@ for name, (momentum, apply, isData, variation, target) in variants.items():
         resolutionVariationK=cms.string('cpp'), variation=cms.string(variation),
         highPt=highPtPSet(opts.era, 200.0, target)))
     task.add(getattr(process, 'corr' + name))
-    table('MuCorr' + name, 'corr' + name, dict(pt=var('pt', 'double'), regime=var("userInt('highPtRegime')", 'int')))
+    table('MuCorr' + name, 'corr' + name, dict(pt=var('pt', 'double'), regime=var("userInt('highPtRegime')", 'int'),
+                                                       originalPt=var("userFloat('originalPt')", 'double')))
 process.out = cms.OutputModule('NanoAODOutputModule', fileName=cms.untracked.string(opts.outputFile),
                                outputCommands=cms.untracked.vstring('drop *', 'keep nanoaodFlatTable_*Table_*_*'))
 process.e = cms.EndPath(process.out, task)

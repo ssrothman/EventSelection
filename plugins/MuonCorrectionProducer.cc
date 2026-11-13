@@ -14,7 +14,8 @@
 #include <memory>
 
 // Copies of the muons with the MUO POG Run-3 momentum assignment and corrections. Each muon gets userInt
-// "highPtRegime": 1 if its momentum is the TuneP one (momentum tuneP, or hybrid with PF pt >= regimeThreshold), else 0.
+// "highPtRegime": 1 if its momentum is the TuneP one (momentum tuneP, or hybrid with PF pt >= regimeThreshold), else 0,
+// and userFloat "originalPt": the input muon's pt, before the momentum assignment and corrections.
 // With applyCorrections:
 //  - regime 0: MuonScaRe scale (data and MC) and resolution (MC) for lowPtThreshold <= pt <= highPtThreshold, in the
 //    order of jsonpog-integration/examples/muoScaleAndSmearingRDFExample.py.
@@ -86,6 +87,7 @@ public:
       out.push_back(mu);
       const bool high = momentum_ == Momentum::TuneP || (momentum_ == Momentum::Hybrid && mu.pt() >= regimeThreshold_);
       out.back().addUserInt("highPtRegime", high);
+      out.back().addUserFloat("originalPt", mu.pt());
       const double eta = mu.eta(), phi = mu.phi();
       double pt = high && mu.tunePMuonBestTrack().isNonnull() ? mu.tunePMuonBestTrack()->pt() : mu.pt();
       if (apply_)
