@@ -27,3 +27,19 @@
   <use name="DataFormats/NanoAOD"/>
   <use name="DataFormats/PatCandidates"/>
 </bin>
+<bin name="testSRothmanEventSelectionPileupWeight" file="test_pileupweight.cc">
+  <use name="catch2"/>
+  <use name="correctionlib"/>
+  <use name="FWCore/TestProcessor"/>
+  <use name="DataFormats/NanoAOD"/>
+  <use name="SimDataFormats/PileupSummaryInfo"/>
+</bin>
+<bin name="testSRothmanEventSelectionObjectExt" file="test_objectext.cc">
+  <use name="catch2"/>
+  <use name="FWCore/TestProcessor"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/Candidate"/>
+  <use name="DataFormats/NanoAOD"/>
+  <use name="DataFormats/PatCandidates"/>
+</bin>

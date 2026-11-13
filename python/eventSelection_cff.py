@@ -164,6 +164,28 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     return flag
 
 
+OBJECT_TABLE_MODULE = dict(muons='MuonExtensionTableProducer', electrons='ElectronExtensionTableProducer',
+                          photons='PhotonExtensionTableProducer')
+
+
+def _objectExtension(process, task, reco, ch, spec, inputs, suffix):
+    """Extension of the reco <ch>Leptons or <ch>Objects table with reco['objectTables'] columns of the object type."""
+    src = reco['objects'][spec['objects']]['source']
+    objects = 'correctedMuons' + suffix if src == 'muons' and hasattr(process, 'correctedMuons' + suffix) else inputs[src]
+    inst = OBJECT_INSTANCE[spec['type']]
+    table = ch + ('Leptons' if inst == 'leptons' else 'Objects') + suffix
+    _add(process, task, ch + 'ObjectsExt' + suffix + 'Table',
+         cms.EDProducer(OBJECT_TABLE_MODULE[src], src=cms.InputTag(ch + 'Sel' + suffix, inst),
+                        objects=cms.InputTag(objects), name=cms.string(table), matchDeltaR=cms.double(0.1),
+                        triggerPaths=cms.vstring(*spec['triggers']),
+                        triggerResults=cms.InputTag('TriggerResults', '', inputs['hltProcess']),
+                        triggerObjects=cms.InputTag(inputs['triggerObjects']), triggerMatchDeltaR=cms.double(0.1),
+                        variables=cms.VPSet(*[cms.PSet(name=cms.string(v['name']), expr=cms.string(v['expr']),
+                                                       type=cms.string(v['type']), doc=cms.string(v['doc']),
+                                                       precision=cms.int32(v['precision']))
+                                              for v in reco['objectTables'][src]])))
+
+
 def metLabel(level, inputs, suffix=''):
     return inputs['met'] if level == 'reco' else 'genParticleLevel%s:mets' % suffix
 
@@ -201,11 +223,13 @@ def _tables(process, level, cfg, flags, inputs, task, suffix):
                                 variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
                                                    mass=var('mass', 'float'), charge=var('charge', 'int'),
                                                    pdgId=var('pdgId', 'int'))))
+        if level == 'reco':
+            _objectExtension(process, task, cfg, ch, spec, inputs, suffix)
     if any(spec['type'] == 'leptonMET' for spec in cfg['channels'].values()):
         met = metLabel(level, inputs, suffix)
-        _add(process, task, label(level, 'met') + suffix + 'Table',
+        _add(process, task, label(level, 'selectionMet') + suffix + 'Table',
              cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(met),
-                            name=cms.string(('GenMET' if level == 'gen' else 'MET') + suffix),
+                            name=cms.string(('GenSelectionMET' if level == 'gen' else 'SelectionMET') + suffix),
                             doc=cms.string('MET used by the %s leptonMET channels (%s)' % (level, met)),
                             singleton=cms.bool(True), extension=cms.bool(False),
                             variables=cms.PSet(pt=var('pt', 'float'), phi=var('phi', 'float'))))

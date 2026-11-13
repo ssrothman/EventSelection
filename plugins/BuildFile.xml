@@ -9,6 +9,9 @@
 <use name="DataFormats/PatCandidates"/>
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/NanoAOD"/>
+<use name="CommonTools/Utils"/>
+<use name="SimDataFormats/PileupSummaryInfo"/>
+<use name="correctionlib"/>
 <use name="SRothman/EventSelection"/>
 <library file="*.cc" name="SRothmanEventSelectionPlugins">
   <flags EDM_PLUGIN="1"/>

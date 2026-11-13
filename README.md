@@ -16,6 +16,8 @@ plus thin filters on those flags.
 | `DressedLeptonProducer` | leptons with photons added to their momentum. `fsr`: the lepton's FSR photon from CMSSW's `LeptonFSRProducer` (at most one isolated photon outside electron footprints, lowest ΔR/E_T²). `cone`: every PF photon within `coneSize` of the nearest lepton of the collection, outside every electron's footprint, optionally PUPPI-weighted (Rivet-like). |
 | `MuonCorrectionProducer` | muon copies with the momentum assignment (`momentum`: `pf`, `tuneP`, or `hybrid` = TuneP if PF pT ≥ `regimeThreshold`) and userInt `highPtRegime` (0/1). With `applyCorrections`, MUO POG Run-3 corrections: regime 0, "MuonScaRe" (CMS-DP-2024-065) scale in data and MC and resolution smearing in MC, for `lowPtThreshold` ≤ pT ≤ `highPtThreshold`; regime 1 (TuneP pT ≥ `highPt.ptMin`, \|η\| < 2.4), GE κ_b (q/pT + κ_b on MC, or q/pT − κ_b on data, per `highPt.kappaTarget`) then MC smearing p → p(1 + N(0, σ(p, η)·f)). Job-wide `variation` (MC): scaleUp/Down, resolutionUp/Down (regime 0); highPtScaleUp/Down (κ_b ± its uncertainty), highPtResolution (extra smearing, f = 0.46) (regime 1). |
 | `MuonSFProducer` | a channel's muon efficiency scale factors: `double` event weight and a singleton NanoAOD table (`nominal`, `<term>_{stat,syst}{Up,Down}`). Each selected lepton is matched to the nearest same-charge `correctedMuons` muon (ΔR < `matchDeltaR`); terms (correctionlib keys) apply to muons of their regime. Per-muon terms multiply. Trigger terms (≤ 1 per regime, HLT path globs `paths`) apply only to the triggering muon: the highest-pT muon within `triggerMatchDeltaR` of a `triggerObjects` object from the last filter of a fired path of its regime's term (provisional, see item 6 below). If such a path fired but no muon matches, a warning is emitted and there is no trigger SF. All weights are 1 for events failing the channel flag `selected`. `outOfRange: skip` gives SF 1. |
+| `PileupWeightTableProducer` | `Pileup` table extension `weight`, `weightUp`, `weightDown`: a LUM correctionlib key at the in-time true number of interactions. |
+| `{Muon,Electron,Photon}ExtensionTableProducer` | extension of a candidate table: each candidate matched (ΔR, same charge) to a PAT object; YAML string-expression columns on it, `undressedPt`, and optionally `triggerMatched` (HLT object from the last filter of a fired path among `triggerPaths`). |
 
 Framework-free logic (pair choice, m_T, veto overlap) lives in `interface/Selection.h`.
 
@@ -43,7 +45,8 @@ Both levels use the same selector modules and channel types (`dilepton`, `lepton
 - `addSelection(process, selection, inputs, levels, isMC)` builds reco and, in MC, gen. Both levels are always built so their flags and selected objects exist.
   - Per level it adds the OR of that level's channels, `anyChannel` / `genAnyChannel`.
   - `anySelected` / `anySelectedFilter` is the OR over `levels`.
-  - NanoAOD tables: `Selection_*` and `GenSelection_*` flags; `<ch>Boson`/`<ch>Objects` and `Gen<ch>Boson`/`Gen<ch>Objects` candidates; the selected leptons of dilepton and leptonMET channels, `<ch>Leptons`/`Gen<ch>Leptons` (pt, eta, phi, mass, charge, pdgId; after dressing and muon corrections; empty unless `<ch>Sel` passed, which does not include the trigger); and, with a leptonMET channel, the MET it uses, `MET`/`GenMET` (pt, phi).
+  - `python/eventTables_cff.py`: the event-level NANO tables (MET, PV/SV, rho, gen vertex, GenPart, pileup weights, AK4 jets) from the analysis YAML `output` section; see `simulation/NANO.md`.
+  - NanoAOD tables: `Selection_*` and `GenSelection_*` flags; `<ch>Boson`/`<ch>Objects` and `Gen<ch>Boson`/`Gen<ch>Objects` candidates; the selected leptons of dilepton and leptonMET channels, `<ch>Leptons`/`Gen<ch>Leptons` (pt, eta, phi, mass, charge, pdgId; after dressing and muon corrections; empty unless `<ch>Sel` passed, which does not include the trigger); and, with a leptonMET channel, the MET it uses, `SelectionMET`/`GenSelectionMET` (pt, phi).
 - `addChannel(process, level, name, spec, inputs, suffix='')` builds one channel; for threshold variations, call it again with a `suffix`.
 - `selectedObjects(levelCfg, level, channels)` gives the InputTags of a level's selected objects, for jet cleaning.
 - `label(level, name)` gives a module's label at a level.
@@ -51,6 +54,8 @@ Both levels use the same selector modules and channel types (`dilepton`, `lepton
 ## Tests
 - `scram b runtests` runs `testSRothmanEventSelection` (logic) and `testSRothmanEventSelectionModules` (TestProcessor).
 - `testSRothmanEventSelectionMuonScaRe`: the muon-correction port (seeds against the POG Python, scale formula, thresholds, Crystal Ball inverse, both resolution-variation definitions).
+- `testSRothmanEventSelectionPileupWeight`: the in-time true interactions and the three weights against correctionlib.
+- `testSRothmanEventSelectionObjectExt`: matching, columns, undressedPt and triggerMatched (fired path, last filter, path list).
 - `testSRothmanEventSelectionMuonHighPt`: κ_b/η/φ binning, curvature shift, σ(p), smearing guard, seeded Gaussian.
 - `testSRothmanEventSelectionMuonSF`: `MuonSFProducer` against correctionlib evaluated directly (cvmfs Summer22EE files): regimes, p vs pT inputs, matching, HLT matching (leading muon, fired path, last filter, ΔR, term paths), channel flag, variations, out-of-range handling, configuration errors.
 - Real-data validation:
