@@ -45,6 +45,35 @@ TEST_CASE("bestPair picks the opposite-sign pair closest to the target mass", "[
   CHECK_FALSE(bestPair({}, c));
 }
 
+TEST_CASE("selectDilepton applies pairPtMin to the chosen pair", "[selection]") {
+  PairCuts c;
+  c.leadPtMin = 26;
+  c.subleadPtMin = 15;
+  c.massMin = 71;
+  c.massMax = 111;
+  // Same phi, deta 0.8814: pair pt 200, m = 91.0.
+  const std::vector<Obj> z{lep(100, 0, 0.3, 1), lep(100, 0.8814, 0.3, -1)};
+  c.pairPtMin = 150;
+  REQUIRE(selectDilepton(z, c));
+  CHECK(selectDilepton(z, c)->first == 0);
+  c.pairPtMin = 199;
+  CHECK(selectDilepton(z, c));
+  c.pairPtMin = 201;
+  CHECK_FALSE(selectDilepton(z, c));
+  // (0,1): m 85.8, pt 6, closest to the Z mass; (2,3): m 82.2, pt 200; mixed OS pairs fall outside the window.
+  const std::vector<Obj> o{lep(40, 0, 0, 1), lep(46, 0, M_PI, -1), lep(100, 0, 0, 1), lep(100, 0.8, 0, -1)};
+  c.pairPtMin = 0;
+  auto p = selectDilepton(o, c);
+  REQUIRE(p);
+  CHECK(p->first == 1);
+  CHECK(p->second == 0);
+  // The chosen low-pt pair fails; the high-pt pair is not chosen instead.
+  c.pairPtMin = 150;
+  CHECK(bestPair(o, c));
+  CHECK_FALSE(selectDilepton(o, c));
+  CHECK_FALSE(selectDilepton({}, c));
+}
+
 TEST_CASE("countExtra ignores the selected objects themselves", "[selection]") {
   const std::vector<Obj> sel{lep(40, 0.5, 1.0, 1)};
   const std::vector<Obj> veto{lep(40, 0.5, 1.0, 1), lep(12, -1.0, 2.0, -1)};

@@ -25,9 +25,12 @@ namespace evsel {
     double massMin = 0, massMax = 1e9;
     bool oppositeCharge = true;
     double targetMass = 91.1876;
+    double pairPtMin = 0;  // used by selectDilepton only, after the pair is chosen
   };
   // Indices (leading first) of the pair passing PairCuts with mass closest to targetMass.
   std::optional<std::pair<std::size_t, std::size_t>> bestPair(const std::vector<Obj>& objs, const PairCuts& c);
+  // bestPair, rejected when that pair's pt is below pairPtMin: a lower-pt pair never yields to a higher-pt one.
+  std::optional<std::pair<std::size_t, std::size_t>> selectDilepton(const std::vector<Obj>& objs, const PairCuts& c);
 
   // Number of objects in `others` farther than dRmin from every object in `selected`
   // (vetoes that are not the selected objects themselves).

@@ -6,7 +6,8 @@
 #include "SRothman/EventSelection/plugins/Common.h"
 
 // Z -> ll: among the (already identified) leptons in src, the pair passing evsel::PairCuts with mass closest
-// to targetMass. Products: bool; "boson" (0 or 1 candidate, the dilepton); "leptons" (0 or 2, leading first).
+// to targetMass, if its pt is at least pairPtMin. Products: bool; "boson" (0 or 1 candidate, the dilepton);
+// "leptons" (0 or 2, leading first).
 class DileptonSelector : public edm::global::EDProducer<> {
 public:
   explicit DileptonSelector(const edm::ParameterSet& cfg)
@@ -20,6 +21,7 @@ public:
     cuts_.massMax = cfg.getParameter<double>("massMax");
     cuts_.oppositeCharge = cfg.getParameter<bool>("oppositeCharge");
     cuts_.targetMass = cfg.getParameter<double>("targetMass");
+    cuts_.pairPtMin = cfg.getParameter<double>("pairPtMin");
   }
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -31,12 +33,13 @@ public:
     desc.add<double>("massMax", 111.0);
     desc.add<bool>("oppositeCharge", true);
     desc.add<double>("targetMass", 91.1876);
+    desc.add<double>("pairPtMin", 0.0)->setComment("applied to the chosen pair, after the choice");
     descriptions.addWithDefaultLabel(desc);
   }
 
   void produce(edm::StreamID, edm::Event& event, const edm::EventSetup&) const override {
     const auto& leps = event.get(src_);
-    const auto pair = evsel::bestPair(evsel::toObjs(leps), cuts_);
+    const auto pair = evsel::selectDilepton(evsel::toObjs(leps), cuts_);
     std::vector<reco::LeafCandidate> boson, out;
     if (pair) {
       const auto& a = leps[pair->first];

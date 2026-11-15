@@ -46,6 +46,19 @@ namespace evsel {
     return best;
   }
 
+  std::optional<std::pair<std::size_t, std::size_t>> selectDilepton(const std::vector<Obj>& o, const PairCuts& c) {
+    auto p = bestPair(o, c);
+    if (p) {
+      const Obj& a = o[p->first];
+      const Obj& b = o[p->second];
+      const double ptPair = std::hypot(a.pt * std::cos(a.phi) + b.pt * std::cos(b.phi),
+                                       a.pt * std::sin(a.phi) + b.pt * std::sin(b.phi));
+      if (ptPair < c.pairPtMin)
+        p.reset();
+    }
+    return p;
+  }
+
   std::size_t countExtra(const std::vector<Obj>& others, const std::vector<Obj>& selected, double dRmin) {
     std::size_t n = 0;
     for (const auto& x : others) {

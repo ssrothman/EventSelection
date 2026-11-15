@@ -141,7 +141,8 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
         p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s),
                            leadPtMin=cms.double(ch['leadPtMin']), subleadPtMin=cms.double(ch['subleadPtMin']),
                            massMin=cms.double(ch['massMin']), massMax=cms.double(ch['massMax']),
-                           oppositeCharge=cms.bool(ch['oppositeCharge']), targetMass=cms.double(ch['targetMass']))
+                           oppositeCharge=cms.bool(ch['oppositeCharge']), targetMass=cms.double(ch['targetMass']),
+                           pairPtMin=cms.double(ch['pairPtMin']))
     elif t == 'leptonMET':
         p = cms.EDProducer('LeptonMETSelector', src=cms.InputTag(ch['objects'] + s), met=cms.InputTag(met),
                            vetoSrcs=vetoes, ptMin=cms.double(ch['ptMin']), metMin=cms.double(ch['metMin']),
