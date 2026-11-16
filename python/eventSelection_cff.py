@@ -74,6 +74,7 @@ def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
     with reco['muonCorrections']['apply'], the MUO POG corrections) instead of inputs['muons'] if it is needed: with
     apply, a non-PF momentum, or muon scale factors in MC."""
     mc = reco['muonCorrections']
+    rawInputs = inputs
     if mc['apply'] or mc['momentum'] != 'pf' or (isMC and reco['muonScaleFactors']):
         hp = mc['highPt']
         _add(process, task, 'correctedMuons' + suffix,
@@ -134,6 +135,56 @@ def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
                         correctionFile=cms.string(v['correctionFile']), key=cms.string(v['key']),
                         mapType=cms.string(v['mapType']), ptMin=cms.double(v['ptMin']),
                         emFractionMax=cms.double(v['emFractionMax']), idMask=cms.uint32(2)))
+    _metCorrections(process, reco, rawInputs, isMC, task, suffix)
+
+
+def _metCorrections(process, reco, inputs, isMC, task, suffix):
+    """reco['metCorrections'] (if apply): metType1 (Type-1 PUPPI MET from the AK4 jets re-corrected with the JEC, and with
+    the JER in MC: metType1Jets, metType1JetsJer), metXY (JME XY shift, if enabled) and, per suffix, correctedMET (the PF
+    muon momenta replaced by correctedMuons, if muons.propagate and the muons are corrected). The shared modules are made
+    once; metLabel gives the label the selections read."""
+    m = reco['metCorrections']
+    if not m['apply']:
+        return
+    if not hasattr(process, 'metType1'):
+        t, j = m['type1'], m['type1']['jer']
+        jer = isMC and j['enabled']
+        _add(process, task, 'metType1Jets',
+             cms.EDProducer('PATJetJECProducer', src=cms.InputTag(t['jets']), rho=cms.InputTag(t['rho']),
+                            correctionFile=cms.string(t['correctionFile']), key=cms.string(t['mcKey' if isMC else 'dataKey']),
+                            uncKey=cms.string(''), jetIdFile=cms.string(''), jetIdType=cms.string(''),
+                            sortByPt=cms.bool(False)))
+        jets = 'metType1Jets'
+        if jer:
+            _add(process, task, 'metType1JetsJer',
+                 cms.EDProducer('PATJetJERCProducer', src=cms.InputTag(jets), type=cms.string('jer'),
+                                direction=cms.string('nominal'), correctionFile=cms.string(t['correctionFile']),
+                                jesKey=cms.string(''), jerScaleFactorKey=cms.string(j['scaleFactorKey']),
+                                jerScaleFactorUncertaintyKey=cms.string(j['scaleFactorUncertaintyKey']),
+                                jerResolutionKey=cms.string(j['resolutionKey']), rho=cms.InputTag(t['rho']),
+                                genJets=cms.InputTag(j['genJets']), jetR=cms.double(0.4),
+                                seedSalt=cms.uint32(j['seedSalt'])))
+            jets = 'metType1JetsJer'
+        _add(process, task, 'metType1',
+             cms.EDProducer('PATMETType1Producer', met=cms.InputTag(inputs['met']), jets=cms.InputTag(jets),
+                            muons=cms.InputTag(inputs['muons']), rho=cms.InputTag(t['rho']), jecSource=cms.string('correctionlib'),
+                            correctionFile=cms.string(t['correctionFile']),
+                            l1Key=cms.string(t['l1McKey' if isMC else 'l1DataKey']),
+                            key=cms.string(t['mcKey' if isMC else 'dataKey']), applyJER=cms.bool(jer),
+                            ptMin=cms.double(t['ptMin']), absEtaMax=cms.double(t['absEtaMax']),
+                            emFractionMax=cms.double(t['emFractionMax'])))
+        xy, v = m['xy'], reco['vertex']
+        if xy['enabled']:
+            _add(process, task, 'metXY',
+                 cms.EDProducer('PATMETXYCorrectionProducer', met=cms.InputTag('metType1'),
+                                vertices=cms.InputTag(inputs['vertices']), correctionFile=cms.string(xy['correctionFile']),
+                                metType=cms.string(xy['metType']), epoch=cms.string(xy['epoch']), isData=cms.bool(not isMC),
+                                variation=cms.string(xy['variation']), ndofMin=cms.double(v['ndofMin']),
+                                absZMax=cms.double(v['absZMax']), rhoMax=cms.double(v['rhoMax'])))
+    if m['muons']['propagate'] and hasattr(process, 'correctedMuons' + suffix):
+        _add(process, task, 'correctedMET' + suffix,
+             cms.EDProducer('PATMETMuonShiftProducer', met=cms.InputTag('metXY' if hasattr(process, 'metXY') else 'metType1'),
+                            original=cms.InputTag(inputs['muons']), corrected=cms.InputTag('correctedMuons' + suffix)))
 
 
 def processModifiers(names):
@@ -199,7 +250,7 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     s, lab = suffix, label(level, name)
     t = ch['type']
     vetoes = cms.VInputTag(*[v + s for v in ch['vetoes']]) if t != 'dilepton' else None
-    met = metLabel(level, inputs, s)
+    met = metLabel(level, inputs, s, process)
     if t == 'dilepton':
         p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s),
                            leadPtMin=cms.double(ch['leadPtMin']), subleadPtMin=cms.double(ch['subleadPtMin']),
@@ -260,8 +311,15 @@ def _objectExtension(process, task, reco, ch, spec, inputs, suffix):
                                               for v in reco['objectTables'][src]])))
 
 
-def metLabel(level, inputs, suffix=''):
-    return inputs['met'] if level == 'reco' else 'genParticleLevel%s:mets' % suffix
+def metLabel(level, inputs, suffix='', process=None):
+    """The MET the selections of `level` read: at reco the last of correctedMET<suffix>, metXY, metType1 that `process`
+    has (see _metCorrections), else inputs['met']."""
+    if level == 'gen':
+        return 'genParticleLevel%s:mets' % suffix
+    for lab in ('correctedMET' + suffix, 'metXY', 'metType1'):
+        if process is not None and hasattr(process, lab):
+            return lab
+    return inputs['met']
 
 
 def _tables(process, level, cfg, flags, inputs, task, suffix):
@@ -309,7 +367,7 @@ def _tables(process, level, cfg, flags, inputs, task, suffix):
         if level == 'reco':
             _objectExtension(process, task, cfg, ch, spec, inputs, suffix)
     if any(spec['type'] == 'leptonMET' for spec in cfg['channels'].values()):
-        met = metLabel(level, inputs, suffix)
+        met = metLabel(level, inputs, suffix, process)
         _add(process, task, label(level, 'selectionMet') + suffix + 'Table',
              cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(met),
                             name=cms.string(('GenSelectionMET' if level == 'gen' else 'SelectionMET') + suffix),
