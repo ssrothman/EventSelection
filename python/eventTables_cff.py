@@ -83,7 +83,8 @@ def addAK4Jets(process, ak4, isMC, task):
     process.ak4JetsCorrected = cms.EDProducer(
         'PATJetJECProducer', src=cms.InputTag(ak4['src']), rho=cms.InputTag(ak4['rho']),
         correctionFile=cms.string(j['correctionFile']), key=cms.string(j['mcKey'] if isMC else j['dataKey']),
-        uncKey=cms.string(j['uncKey']), jetIdVersion=cms.string(ak4['jetIdVersion']),
+        uncKey=cms.string(j['uncKey']), jetIdFile=cms.string(ak4['jetId']['correctionFile']),
+        jetIdType=cms.string(ak4['jetId']['type']),
         sortByPt=cms.bool(True))
     v = cms.PSet(
         pt=Var('pt', float, doc='pt with the re-applied JEC', precision=-1),

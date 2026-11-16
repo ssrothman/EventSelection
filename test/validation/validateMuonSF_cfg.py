@@ -15,12 +15,19 @@ import muonRecipes  # noqa: E402
 
 opts = VarParsing('analysis')
 opts.register('config', '', VarParsing.multiplicity.singleton, VarParsing.varType.string, 'analysis configuration YAML')
+opts.register('globalTag', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+              'conditions GlobalTag (needed for selection.reco.ecalBadCalib)')
 opts.register('recipe', 'default', VarParsing.multiplicity.singleton, VarParsing.varType.string, 'muonRecipes key')
 opts.parseArguments()
 with open(opts.config) as f:
     cfg = muonRecipes.RECIPES[opts.recipe](yaml.safe_load(f))
 
-process = cms.Process('SFVAL')
+from SRothman.EventSelection.eventSelection_cff import processModifiers  # noqa: E402
+process = cms.Process('SFVAL', *processModifiers(cfg['inputs']['eras']))
+if opts.globalTag:
+    process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
+    from Configuration.AlCa.GlobalTag import GlobalTag
+    process.GlobalTag = GlobalTag(process.GlobalTag, opts.globalTag, '')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.MessageLogger.cerr.FwkReport.reportEvery = 500
 process.source = cms.Source('PoolSource', fileNames=cms.untracked.vstring(opts.inputFiles))

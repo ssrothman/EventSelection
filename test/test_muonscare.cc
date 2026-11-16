@@ -11,7 +11,7 @@ using evsel::CrystalBall;
 using evsel::MuonScaRe;
 
 namespace {
-  const char* kFile = "/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/muon_scalesmearing.json.gz";
+  const char* kFile = "/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/2026-06-18/muon_scalesmearing.json.gz";
 }
 
 TEST_CASE("seed matches the POG Python SeedSequence and ignores lumi and phi", "[muonscare]") {

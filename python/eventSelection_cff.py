@@ -3,8 +3,9 @@
 Every value comes from the caller's configuration dict (see simulation/configs/default.yaml in boostedV);
 there are no physics defaults here.
 
-Reco level (labels unprefixed): object collections from PAT string cuts, goodVertexFlag, metFilterFlag, and per channel
-  <ch>Trigger, <ch>Sel, <ch> (AND of trigger, vertex, MET filters and selection) and <ch>Filter.
+Reco level (labels unprefixed): object collections from PAT string cuts, the event-cleaning flags goodVertexFlag,
+  metFilterFlag, ecalBadCalibFlag (if configured) and jetVetoMapFlag, and per channel <ch>Trigger, <ch>Sel, <ch> (AND of
+  trigger, cleaning flags and selection) and <ch>Filter.
 Gen level (labels prefixed 'gen'): Rivet particle-level objects (genParticleLevel: dressed prompt leptons, isolated
   prompt photons, MET from prompt neutrinos), object collections from candidate string cuts, and per channel
   gen<ch>Sel, gen<ch> (= gen<ch>Sel) and gen<ch>Filter; there is no trigger, vertex or MET-filter requirement.
@@ -96,6 +97,54 @@ def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
          cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', inputs['metFilterProcess']),
                         paths=cms.vstring(*reco['metFilters']), requireAll=cms.bool(True),
                         allowMissing=cms.bool(False)))
+    e = reco['ecalBadCalib']
+    if e['crystals']:
+        from Configuration.Eras.Modifier_run3_common_cff import run3_common
+        if not hasattr(process, 'GlobalTag') or not process.isUsingModifier(run3_common):
+            raise ValueError('selection/reco/ecalBadCalib needs the calorimeter geometry: a process with a Run 3 era '
+                             '(inputs/eras) and process.GlobalTag')
+        process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
+        _add(process, task, 'ecalBadCalibFlag' + suffix,
+             cms.EDFilter('EcalBadCalibFilter', EcalRecHitSource=cms.InputTag(e['recHits']),
+                          ecalMinEt=cms.double(e['minEt']), baddetEcal=cms.vuint32(*e['crystals']),
+                          taggingMode=cms.bool(True), debug=cms.bool(False)))
+    v = reco['jetVetoMap']
+    _add(process, task, 'jetVetoMapJets' + suffix,
+         cms.EDProducer('PATJetJECProducer', src=cms.InputTag(v['src']), rho=cms.InputTag(v['rho']),
+                        correctionFile=cms.string(v['jec']['correctionFile']),
+                        key=cms.string(v['jec']['mcKey' if isMC else 'dataKey']), uncKey=cms.string(''),
+                        jetIdFile=cms.string(v['jetId']['correctionFile']), jetIdType=cms.string(v['jetId']['type']),
+                        sortByPt=cms.bool(False)))
+    _add(process, task, 'jetVetoMapFlag' + suffix,
+         cms.EDProducer('JetVetoMapFlagProducer', src=cms.InputTag('jetVetoMapJets' + suffix),
+                        correctionFile=cms.string(v['correctionFile']), key=cms.string(v['key']),
+                        mapType=cms.string(v['mapType']), ptMin=cms.double(v['ptMin']),
+                        emFractionMax=cms.double(v['emFractionMax']), idMask=cms.uint32(2)))
+
+
+def processModifiers(names):
+    """The eras and modifiers named in `names` (Configuration.Eras.Era_<name>_cff or Modifier_<name>_cff), for
+    cms.Process."""
+    import importlib
+    out = []
+    for n in names:
+        for pattern in ('Configuration.Eras.Era_%s_cff', 'Configuration.Eras.Modifier_%s_cff'):
+            try:
+                out.append(getattr(importlib.import_module(pattern % n), n))
+                break
+            except ModuleNotFoundError:
+                continue
+        else:
+            raise ValueError('unknown era or modifier %s' % n)
+    return out
+
+
+def recoEventFlags(process, suffix=''):
+    """(table name, module label) of the reco event-cleaning flags built by addRecoCommon, all required by every reco
+    channel."""
+    names = [('goodVertex', 'goodVertexFlag'), ('metFilters', 'metFilterFlag'), ('ecalBadCalib', 'ecalBadCalibFlag'),
+             ('jetVetoMap', 'jetVetoMapFlag')]
+    return [(n, l + suffix) for n, l in names if hasattr(process, l + suffix)]
 
 
 def addGenCommon(process, gen, inputs, task=None, suffix=''):
@@ -159,7 +208,7 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
                     cms.EDProducer('TriggerFlagProducer', src=cms.InputTag('TriggerResults', '', inputs['hltProcess']),
                                    paths=cms.vstring(*ch['triggers']), requireAll=cms.bool(False),
                                    allowMissing=cms.bool(ch['allowMissingTriggers'])))
-        srcs = [trig, 'goodVertexFlag' + s, 'metFilterFlag' + s, sel]
+        srcs = [trig] + [l for _, l in recoEventFlags(process, s)] + [sel]
     flag = _add(process, task, lab + s, cms.EDProducer('FlagCombiner', mode=cms.string('and'), srcs=cms.VInputTag(*srcs)))
     setattr(process, lab + s + 'Filter', cms.EDFilter('EventFlagFilter', srcs=cms.VInputTag(flag), mode=cms.string('and')))
     return flag
@@ -192,7 +241,8 @@ def metLabel(level, inputs, suffix=''):
 
 
 def _tables(process, level, cfg, flags, inputs, task, suffix):
-    names, srcs = ([], []) if level == 'gen' else (['goodVertex', 'metFilters'], ['goodVertexFlag' + suffix, 'metFilterFlag' + suffix])
+    ev = [] if level == 'gen' else recoEventFlags(process, suffix)
+    names, srcs = [n for n, _ in ev], [l for _, l in ev]
     for ch in flags:
         names += [ch, ch + 'Sel'] + ([ch + 'Trigger'] if level == 'reco' else [])
         srcs += [label(level, ch) + suffix, label(level, ch) + 'Sel' + suffix] + ([ch + 'Trigger' + suffix] if level == 'reco' else [])

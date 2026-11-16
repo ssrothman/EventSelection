@@ -12,7 +12,7 @@
 
 namespace {
   const std::string kFile =
-      "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/puWeights.json.gz";
+      "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22EFGSep23-Summer22EE-NanoAODv12/2024-01-31/puWeights.json.gz";
   const std::string kKey = "Collisions2022_359022_362760_eraEFG_GoldenJson";
   PileupSummaryInfo pu(int bx, float nTrue) {
     return PileupSummaryInfo(0, {}, {}, {}, {}, {}, {}, {}, {}, bx, nTrue, 25);

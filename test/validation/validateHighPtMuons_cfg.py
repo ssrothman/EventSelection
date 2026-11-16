@@ -16,7 +16,7 @@ process.MessageLogger.cerr.FwkReport.reportEvery = 500
 process.source = cms.Source('PoolSource', fileNames=cms.untracked.vstring(opts.inputFiles))
 process.maxEvents.input = opts.maxEvents
 task = cms.Task()
-SCARE = '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/muon_scalesmearing.json.gz'
+SCARE = '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/2026-06-18/muon_scalesmearing.json.gz'
 
 
 def var(expr, typ):

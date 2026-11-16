@@ -17,7 +17,7 @@
 
 // Expected values are evaluated here with correctionlib directly, from the Summer22EE MUO files on cvmfs.
 namespace {
-  const std::string kDir = "/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/";
+  const std::string kDir = "/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/2026-06-18/";
   const std::string kZ = kDir + "muon_Z.json.gz", kHighPt = kDir + "muon_HighPt.json.gz";
   const std::string kId = "NUM_TightID_DEN_TrackerMuons";
   const std::string kTrig = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight";

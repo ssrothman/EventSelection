@@ -1,5 +1,5 @@
 """In-memory variants of an analysis configuration for the muon validations."""
-MUO = '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/'
+MUO = '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-22EFGSep23-Summer22EE-NanoAODv12/2026-06-18/'
 HIGH_TRIGGERS = ['HLT_IsoMu24_v*', 'HLT_Mu50_v*', 'HLT_CascadeMu100_v*', 'HLT_HighPtTkMu100_v*']
 HYBRID_CUT = ("pt > 15 && abs(eta) < 2.4 && ((userInt('highPtRegime') == 0 && passed('CutBasedIdTight') && "
               "passed('PFIsoTight')) || (userInt('highPtRegime') == 1 && passed('CutBasedIdGlobalHighPt') && "

@@ -10,6 +10,8 @@ from SRothman.EventSelection.eventSelection_cff import addRecoCommon
 
 opts = VarParsing('analysis')
 opts.register('config', '', VarParsing.multiplicity.singleton, VarParsing.varType.string, 'analysis configuration YAML')
+opts.register('globalTag', '', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+              'conditions GlobalTag (needed for selection.reco.ecalBadCalib)')
 opts.register('mode', 'cone', VarParsing.multiplicity.singleton, VarParsing.varType.string, 'fsr | cone')
 opts.parseArguments()
 with open(opts.config) as f:
@@ -17,7 +19,12 @@ with open(opts.config) as f:
 reco = copy.deepcopy(cfg['selection']['reco'])
 reco['dressing']['mode'] = opts.mode
 
-process = cms.Process('DRESSVAL')
+from SRothman.EventSelection.eventSelection_cff import processModifiers  # noqa: E402
+process = cms.Process('DRESSVAL', *processModifiers(cfg['inputs']['eras']))
+if opts.globalTag:
+    process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
+    from Configuration.AlCa.GlobalTag import GlobalTag
+    process.GlobalTag = GlobalTag(process.GlobalTag, opts.globalTag, '')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.MessageLogger.cerr.FwkReport.reportEvery = 500
 process.source = cms.Source('PoolSource', fileNames=cms.untracked.vstring(opts.inputFiles))
