@@ -9,7 +9,9 @@ plus thin filters on those flags.
 | `TriggerFlagProducer` | `bool`: OR (or AND, with `requireAll`) of the paths matching the glob `paths`. A pattern that matches nothing throws, unless `allowMissing`. Used for HLT paths and for the `Flag_*` MET filters. |
 | `VertexFlagProducer` | `bool`: the first PV is not fake, ndof > 4, \|z\| < 24, ρ < 2. |
 | `DileptonSelector` | `bool`, `"boson"`, `"leptons"`: the opposite-sign pair with lead/sublead pt cuts and mass in a window, closest to m_Z. |
-| `LeptonMETSelector` | `bool`, `"boson"` (ℓ + MET, with MET p_z = 0), `"leptons"`: exactly one lepton above `ptMin`, no other veto lepton, MET and m_T cuts. |
+| `LeptonMETSelector` | `bool`, `"leptons"`: exactly one lepton above `ptMin`, no other veto lepton, MET and m_T cuts. |
+| `WMassNeutrinoProducer`, `ZeroPzNeutrinoProducer` | neutrino reconstruction strategies, one module type each. Contract: inputs `leptons` (0 or 1 candidates) and `met`; output one massless neutrino per lepton, `status()` = the strategy's code. A new strategy is a struct plus `DEFINE_FWK_MODULE` on `NeutrinoProducer<S>` (`plugins/NeutrinoProducer.h`). `WMassNeutrinoProducer` (`wMass`): `evsel::wMassNeutrino`, status 1 two real roots (smaller \|p_z\|), 2 one, 3 complex (real part). `ZeroPzNeutrinoProducer`: p_z = 0, status 0. |
+| `LeptonNeutrinoBosonProducer` | the W candidate: `leptons` + `neutrino`, with the lepton's charge. |
 | `SingleObjectEventSelector` | `bool`, `"objects"` (the leading object): nMin ≤ N ≤ nMax objects and empty veto collections. |
 | `FlagCombiner` / `EventFlagFilter` | AND/OR of bool products, as a product or as a filter. |
 | `EventFlagTableProducer` | singleton NanoAOD table with one bool column per flag. |

@@ -68,10 +68,10 @@ TEST_CASE("LeptonMETSelector", "[modules]") {
     auto ev = tester.test(std::make_pair(putL, cands({mu})), std::make_pair(putM, cands({cand(50, 0, M_PI, 0)})),
                           std::make_pair(putV, cands({mu})));
     CHECK(*ev.get<bool>());
-    const auto& w = *ev.get<Cands>("boson");
-    REQUIRE(w.size() == 1);
-    CHECK(w[0].pt() == Approx(5).margin(1e-6));
-    CHECK(w[0].charge() == -1);
+    const auto& l = *ev.get<Cands>("leptons");
+    REQUIRE(l.size() == 1);
+    CHECK(l[0].pt() == Approx(45));
+    CHECK(l[0].charge() == -1);
   }
   {
     // An extra veto lepton fails the event.
@@ -91,6 +91,83 @@ TEST_CASE("LeptonMETSelector", "[modules]") {
                           std::make_pair(putM, cands({cand(50, 0, M_PI, 0)})), std::make_pair(putV, cands({})));
     CHECK_FALSE(*ev.get<bool>());
   }
+}
+
+namespace {
+  // m(lepton, neutrino) of two candidates.
+  double mass(const reco::LeafCandidate& a, const reco::LeafCandidate& b) { return (a.p4() + b.p4()).M(); }
+  std::string neutrinoCfg(const std::string& type, const std::string& extra) {
+    return kHeader + "process.toTest = cms.EDProducer('" + type + "', leptons = cms.InputTag('leps'), met = cms.InputTag('met')" +
+           extra + ")\nprocess.moduleToTest(process.toTest)\n";
+  }
+}  // namespace
+
+TEST_CASE("WMassNeutrinoProducer: neutrino with m(l nu) = mW, the status, no lepton, two leptons", "[modules][neutrino]") {
+  edm::test::TestProcessor::Config config{neutrinoCfg("WMassNeutrinoProducer", ", wMass = cms.double(80.3692)")};
+  auto putL = config.produces<Cands>("leps");
+  auto putM = config.produces<Cands>("met");
+  edm::test::TestProcessor tester(config);
+  const auto mu = cand(50, 1.0, 0.3, -1), met = cand(40, 0.0, 2.5, 0);
+  {
+    auto ev = tester.test(std::make_pair(putL, cands({mu})), std::make_pair(putM, cands({met})));
+    const auto& nu = *ev.get<Cands>();
+    REQUIRE(nu.size() == 1);
+    CHECK(nu[0].status() == 1);
+    CHECK(nu[0].charge() == 0);
+    CHECK(nu[0].pt() == Approx(40));
+    CHECK(nu[0].phi() == Approx(2.5));
+    CHECK(mass(mu, nu[0]) == Approx(80.3692).epsilon(1e-9));
+  }
+  {
+    // mT = 120 > mW: complex roots.
+    auto ev = tester.test(std::make_pair(putL, cands({cand(60, -0.7, 1.0, 1)})),
+                          std::make_pair(putM, cands({cand(60, 0, 1.0 + M_PI, 0)})));
+    REQUIRE(ev.get<Cands>()->size() == 1);
+    CHECK((*ev.get<Cands>())[0].status() == 3);
+  }
+  {
+    auto ev = tester.test(std::make_pair(putL, cands({})), std::make_pair(putM, cands({met})));
+    CHECK(ev.get<Cands>()->empty());
+  }
+  CHECK_THROWS(tester.test(std::make_pair(putL, cands({mu, cand(35, -0.5, 2, 1)})), std::make_pair(putM, cands({met}))));
+}
+
+TEST_CASE("ZeroPzNeutrinoProducer: same contract, pz = 0, status 0", "[modules][neutrino]") {
+  edm::test::TestProcessor::Config config{neutrinoCfg("ZeroPzNeutrinoProducer", "")};
+  auto putL = config.produces<Cands>("leps");
+  auto putM = config.produces<Cands>("met");
+  edm::test::TestProcessor tester(config);
+  auto ev = tester.test(std::make_pair(putL, cands({cand(50, 1.0, 0.3, -1)})), std::make_pair(putM, cands({cand(40, 0.0, 2.5, 0)})));
+  const auto& nu = *ev.get<Cands>();
+  REQUIRE(nu.size() == 1);
+  CHECK(nu[0].status() == 0);
+  CHECK(nu[0].pz() == 0);
+  CHECK(nu[0].pt() == Approx(40));
+}
+
+TEST_CASE("LeptonNeutrinoBosonProducer: sum with the lepton's charge", "[modules][neutrino]") {
+  edm::test::TestProcessor::Config config{kHeader +
+                                          "process.toTest = cms.EDProducer('LeptonNeutrinoBosonProducer', leptons = "
+                                          "cms.InputTag('leps'), neutrino = cms.InputTag('nu'))\n"
+                                          "process.moduleToTest(process.toTest)\n"};
+  auto putL = config.produces<Cands>("leps");
+  auto putN = config.produces<Cands>("nu");
+  edm::test::TestProcessor tester(config);
+  const auto l = cand(50, 1.0, 0.3, -1), nu = cand(40, 0.5, 2.5, 0);
+  {
+    auto ev = tester.test(std::make_pair(putL, cands({l})), std::make_pair(putN, cands({nu})));
+    const auto& w = *ev.get<Cands>();
+    REQUIRE(w.size() == 1);
+    CHECK(w[0].charge() == -1);
+    CHECK(w[0].px() == Approx(l.px() + nu.px()));
+    CHECK(w[0].pz() == Approx(l.pz() + nu.pz()));
+    CHECK(w[0].energy() == Approx(l.energy() + nu.energy()));
+  }
+  {
+    auto ev = tester.test(std::make_pair(putL, cands({})), std::make_pair(putN, cands({})));
+    CHECK(ev.get<Cands>()->empty());
+  }
+  CHECK_THROWS(tester.test(std::make_pair(putL, cands({l})), std::make_pair(putN, cands({}))));
 }
 
 TEST_CASE("SingleObjectEventSelector", "[modules]") {

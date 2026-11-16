@@ -18,7 +18,21 @@ LEVELS = ('reco', 'gen')
 PREFIX = dict(reco='', gen='gen')
 _PAT_SELECTORS = dict(muons='PATMuonSelector', electrons='PATElectronSelector', photons='PATPhotonSelector')
 OBJECT_INSTANCE = dict(dilepton='leptons', leptonMET='leptons', singleObject='objects')
-BOSON_INSTANCE = dict(dilepton='boson', leptonMET='boson', singleObject='objects')
+
+
+def bosonTag(level, name, spec, suffix=''):
+    """'label[:instance]' of the channel's boson candidates (singleObject: its objects)."""
+    lab = label(level, name)
+    if spec['type'] == 'leptonMET':
+        return lab + 'Boson' + suffix
+    return lab + 'Sel' + suffix + ':' + ('boson' if spec['type'] == 'dilepton' else 'objects')
+
+
+def _param(v):
+    for typ, ctor in ((bool, cms.bool), (int, cms.int32), (float, cms.double), (str, cms.string)):
+        if isinstance(v, typ):
+            return ctor(v)
+    raise TypeError('unsupported neutrino parameter %r' % (v,))
 
 
 def label(level, name):
@@ -202,6 +216,16 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     else:
         raise ValueError('channel %s: unknown type %s' % (name, t))
     sel = _add(process, task, lab + 'Sel' + s, p)
+    if t == 'leptonMET':
+        # The neutrino strategy is the module type ch['neutrino']['type'] (inputs `leptons`, `met`; its other keys
+        # are that module's parameters); the boson is the selected lepton plus that neutrino.
+        nu = dict(ch['neutrino'])
+        _add(process, task, lab + 'Neutrino' + s,
+             cms.EDProducer(nu.pop('type'), leptons=cms.InputTag(sel, 'leptons'), met=cms.InputTag(met),
+                            **{k: _param(v) for k, v in nu.items()}))
+        _add(process, task, lab + 'Boson' + s,
+             cms.EDProducer('LeptonNeutrinoBosonProducer', leptons=cms.InputTag(sel, 'leptons'),
+                            neutrino=cms.InputTag(lab + 'Neutrino' + s)))
     srcs = [sel]
     if level == 'reco':
         trig = _add(process, task, lab + 'Trigger' + s,
@@ -255,15 +279,23 @@ def _tables(process, level, cfg, flags, inputs, task, suffix):
         return cms.PSet(expr=cms.string(expr), type=cms.string(typ), doc=cms.string(expr), precision=cms.int32(-1))
 
     for ch, spec in cfg['channels'].items():
-        inst = BOSON_INSTANCE[spec['type']]
         _add(process, task, label(level, ch) + 'Candidates' + suffix + 'Table',
-             cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(label(level, ch) + 'Sel' + suffix, inst),
+             cms.EDProducer('SimpleCandidateFlatTableProducer', src=cms.InputTag(bosonTag(level, ch, spec, suffix)),
                             name=cms.string(('Gen' if level == 'gen' else '') + ch +
-                                            ('Boson' if inst == 'boson' else 'Objects') + suffix),
+                                            ('Objects' if spec['type'] == 'singleObject' else 'Boson') + suffix),
                             doc=cms.string('%s %s selected candidate' % (level, ch)), singleton=cms.bool(False),
                             extension=cms.bool(False), cut=cms.string(''),
                             variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
                                                mass=var('mass', 'float'), charge=var('charge', 'int'))))
+        if spec['type'] == 'leptonMET':
+            _add(process, task, label(level, ch) + 'Neutrino' + suffix + 'Table',
+                 cms.EDProducer('SimpleCandidateFlatTableProducer',
+                                src=cms.InputTag(label(level, ch) + 'Neutrino' + suffix),
+                                name=cms.string(('Gen' if level == 'gen' else '') + ch + 'Neutrino' + suffix),
+                                doc=cms.string('%s %s reconstructed neutrino (status: strategy code)' % (level, ch)),
+                                singleton=cms.bool(False), extension=cms.bool(False), cut=cms.string(''),
+                                variables=cms.PSet(pt=var('pt', 'float'), eta=var('eta', 'float'), phi=var('phi', 'float'),
+                                                   mass=var('mass', 'float'), status=var('status', 'int'))))
         if OBJECT_INSTANCE[spec['type']] == 'leptons':
             _add(process, task, label(level, ch) + 'Leptons' + suffix + 'Table',
                  cms.EDProducer('SimpleCandidateFlatTableProducer',
