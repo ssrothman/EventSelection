@@ -135,7 +135,40 @@ def addRecoCommon(process, reco, inputs, isMC, task=None, suffix=''):
                         correctionFile=cms.string(v['correctionFile']), key=cms.string(v['key']),
                         mapType=cms.string(v['mapType']), ptMin=cms.double(v['ptMin']),
                         emFractionMax=cms.double(v['emFractionMax']), idMask=cms.uint32(2)))
+    _extraJets(process, reco['extraJets'], isMC, task, suffix)
     _metCorrections(process, reco, rawInputs, isMC, task, suffix)
+
+
+def _extraJets(process, x, isMC, task, suffix):
+    """Reco jets for the extra-jet veto of the back-to-back channels: x['src'] with the JEC re-applied (and jet ID bits),
+    in MC the nominal JER, then the jet ID mask; the pt, eta and overlap cuts are applied by BackToBackSelector."""
+    _add(process, task, 'extraJetsJEC' + suffix,
+         cms.EDProducer('PATJetJECProducer', src=cms.InputTag(x['src']), rho=cms.InputTag(x['rho']),
+                        correctionFile=cms.string(x['jec']['correctionFile']),
+                        key=cms.string(x['jec']['mcKey' if isMC else 'dataKey']), uncKey=cms.string(''),
+                        jetIdFile=cms.string(x['jetId']['correctionFile']), jetIdType=cms.string(x['jetId']['type']),
+                        sortByPt=cms.bool(False)))
+    jets = 'extraJetsJEC' + suffix
+    if isMC:
+        j = x['jer']
+        _add(process, task, 'extraJetsJER' + suffix,
+             cms.EDProducer('PATJetJERCProducer', src=cms.InputTag(jets), type=cms.string('jer'),
+                            direction=cms.string('nominal'), correctionFile=cms.string(x['jec']['correctionFile']),
+                            jesKey=cms.string(''), jerScaleFactorKey=cms.string(j['scaleFactorKey']),
+                            jerScaleFactorUncertaintyKey=cms.string(j['scaleFactorUncertaintyKey']),
+                            jerResolutionKey=cms.string(j['resolutionKey']), rho=cms.InputTag(x['rho']),
+                            genJets=cms.InputTag(j['genJets']), jetR=cms.double(0.4), seedSalt=cms.uint32(j['seedSalt'])))
+        jets = 'extraJetsJER' + suffix
+    # The string parser has no bitwise and: list the jetId values (bits 0-2) that contain the mask.
+    m = x['idMask']
+    cut = ' || '.join("userInt('jetId') == %d" % v for v in range(8) if v & m == m)
+    _add(process, task, 'extraJets' + suffix,
+         cms.EDFilter('PATJetSelector', src=cms.InputTag(jets), filter=cms.bool(False), cut=cms.string(cut)))
+
+
+def extraJetsTag(level, levelCfg, suffix=''):
+    """Input of the extra-jet veto at `level`: the reco extraJets modules, or the gen jets of selection.gen.extraJets."""
+    return 'extraJets' + suffix if level == 'reco' else levelCfg['extraJets']['src']
 
 
 def _metCorrections(process, reco, inputs, isMC, task, suffix):
