@@ -53,6 +53,39 @@ TEST_CASE("DileptonSelector", "[modules]") {
   }
 }
 
+TEST_CASE("DileptonSelector vetoes", "[modules]") {
+  edm::test::TestProcessor::Config config{kHeader +
+                                          "process.toTest = cms.EDProducer('DileptonSelector', src = "
+                                          "cms.InputTag('leps'), vetoSrcs = cms.VInputTag('vmu', 've'))\n"
+                                          "process.moduleToTest(process.toTest)\n"};
+  auto putL = config.produces<Cands>("leps");
+  auto putM = config.produces<Cands>("vmu");
+  auto putE = config.produces<Cands>("ve");
+  edm::test::TestProcessor tester(config);
+  const auto a = cand(40, 0, 0, 1), b = cand(52, 0, M_PI, -1);
+  {
+    // The selected pair is itself in the same-flavour veto collection: no self-veto.
+    auto ev = tester.test(std::make_pair(putL, cands({a, b})), std::make_pair(putM, cands({a, b})),
+                          std::make_pair(putE, cands({})));
+    CHECK(*ev.get<bool>());
+    CHECK(ev.get<Cands>("leptons")->size() == 2);
+  }
+  {
+    // A third same-flavour lepton (not part of any accepted pair: too soft for the selection) fails the event.
+    auto ev = tester.test(std::make_pair(putL, cands({a, b})), std::make_pair(putM, cands({a, b, cand(11, 1.0, 2.0, 1)})),
+                          std::make_pair(putE, cands({})));
+    CHECK_FALSE(*ev.get<bool>());
+    CHECK(ev.get<Cands>("boson")->empty());
+    CHECK(ev.get<Cands>("leptons")->empty());
+  }
+  {
+    // A lepton of the other flavour fails the event.
+    auto ev = tester.test(std::make_pair(putL, cands({a, b})), std::make_pair(putM, cands({a, b})),
+                          std::make_pair(putE, cands({cand(20, -1.0, 1.0, -1)})));
+    CHECK_FALSE(*ev.get<bool>());
+  }
+}
+
 TEST_CASE("LeptonMETSelector", "[modules]") {
   edm::test::TestProcessor::Config config{kHeader +
                                           "process.toTest = cms.EDProducer('LeptonMETSelector', src = "

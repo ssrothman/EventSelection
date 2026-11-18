@@ -249,10 +249,10 @@ def addChannel(process, level, name, ch, inputs, task=None, suffix=''):
     the same suffix. Threshold variations: call again with a modified spec and a suffix."""
     s, lab = suffix, label(level, name)
     t = ch['type']
-    vetoes = cms.VInputTag(*[v + s for v in ch['vetoes']]) if t != 'dilepton' else None
+    vetoes = cms.VInputTag(*[v + s for v in ch['vetoes']])
     met = metLabel(level, inputs, s, process)
     if t == 'dilepton':
-        p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s),
+        p = cms.EDProducer('DileptonSelector', src=cms.InputTag(ch['objects'] + s), vetoSrcs=vetoes,
                            leadPtMin=cms.double(ch['leadPtMin']), subleadPtMin=cms.double(ch['subleadPtMin']),
                            massMin=cms.double(ch['massMin']), massMax=cms.double(ch['massMax']),
                            oppositeCharge=cms.bool(ch['oppositeCharge']), targetMass=cms.double(ch['targetMass']),
