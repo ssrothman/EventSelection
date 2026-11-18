@@ -3,6 +3,7 @@
 
 #include "DataFormats/Candidate/interface/LeafCandidate.h"
 #include "DataFormats/NanoAOD/interface/FlatTable.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
 #include "FWCore/TestProcessor/interface/TestProcessor.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
@@ -275,4 +276,25 @@ TEST_CASE("FlagCombiner, EventFlagFilter and EventFlagTableProducer", "[modules]
                                        "= cms.string('xor'))\nprocess.moduleToTest(process.toTest)\n"};
   bad.produces<bool>("a");
   CHECK_THROWS_AS(edm::test::TestProcessor(bad), cms::Exception);
+}
+
+TEST_CASE("VertexFlagProducer: NanoAOD goodPvCut on the first vertex, boundaries included", "[modules][vertex]") {
+  edm::test::TestProcessor::Config config{kHeader +
+                                          "process.toTest = cms.EDProducer('VertexFlagProducer', src = "
+                                          "cms.InputTag('pv'))\nprocess.moduleToTest(process.toTest)\n"};
+  auto put = config.produces<reco::VertexCollection>("pv");
+  edm::test::TestProcessor tester(config);
+  auto flag = [&](std::vector<reco::Vertex> v) {
+    return *tester.test(std::make_pair(put, std::make_unique<reco::VertexCollection>(std::move(v)))).get<bool>();
+  };
+  auto vtx = [](double x, double z, double ndof) {
+    return reco::Vertex(reco::Vertex::Point(x, 0, z), reco::Vertex::Error(), 1.0, ndof, 5);
+  };
+  CHECK(flag({vtx(0, 24.0, 5)}));
+  CHECK(flag({vtx(2.0, -24.0, 5)}));
+  CHECK_FALSE(flag({vtx(0, 24.01, 5)}));
+  CHECK_FALSE(flag({vtx(2.01, 0, 5)}));
+  CHECK_FALSE(flag({vtx(0, 0, 4)}));
+  CHECK_FALSE(flag({reco::Vertex(), vtx(0, 0, 10)}));  // fake first vertex; later ones are not considered
+  CHECK_FALSE(flag({}));
 }

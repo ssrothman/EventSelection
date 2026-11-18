@@ -7,7 +7,7 @@
 
 #include <cmath>
 
-// bool = the first vertex is good: not fake, ndof > ndofMin, |z| < absZMax, rho < rhoMax.
+// bool = the first vertex is good: not fake, ndof > ndofMin, |z| <= absZMax, rho <= rhoMax (NanoAOD goodPvCut).
 class VertexFlagProducer : public edm::global::EDProducer<> {
 public:
   explicit VertexFlagProducer(const edm::ParameterSet& cfg)
@@ -28,8 +28,8 @@ public:
 
   void produce(edm::StreamID, edm::Event& event, const edm::EventSetup&) const override {
     const auto& v = event.get(src_);
-    const bool good = !v.empty() && !v[0].isFake() && v[0].ndof() > ndofMin_ && std::abs(v[0].z()) < zMax_ &&
-                      v[0].position().rho() < rhoMax_;
+    const bool good = !v.empty() && !v[0].isFake() && v[0].ndof() > ndofMin_ && std::abs(v[0].z()) <= zMax_ &&
+                      v[0].position().rho() <= rhoMax_;
     event.emplace(put_, good);
   }
 

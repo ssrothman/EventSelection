@@ -36,7 +36,7 @@ def addEventTables(process, out, inputs, vertexCuts, isMC, task):
             pvSrc=cms.InputTag(inputs['vertices']), pfcSrc=cms.InputTag(inputs['pfCandidates']),
             svSrc=cms.InputTag(inputs['secondaryVertices']),
             # The goodVertex flag's cuts, so that npvsGood counts vertices as Selection_goodVertex judges the first.
-            goodPvCut=cms.string('!isFake && ndof > %r && abs(z) < %r && position.Rho < %r'
+            goodPvCut=cms.string('!isFake && ndof > %r && abs(z) <= %r && position.Rho <= %r'
                                  % (v['ndofMin'], v['absZMax'], v['rhoMax'])))
         process.svCandidateTable = svCandidateTable.clone(src=cms.InputTag('vertexTable'))
         task.add(process.vertexTable, process.svCandidateTable)

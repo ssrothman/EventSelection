@@ -6,6 +6,7 @@
   <use name="catch2"/>
   <use name="FWCore/TestProcessor"/>
   <use name="DataFormats/Candidate"/>
+  <use name="DataFormats/VertexReco"/>
   <use name="DataFormats/NanoAOD"/>
 </bin>
 <bin name="testSRothmanEventSelectionMuonScaRe" file="test_muonscare.cc">
