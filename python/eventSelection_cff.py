@@ -463,3 +463,11 @@ def addSelection(process, sel, inputs, levels, isMC, task=None, suffix='', withT
 def selectedObjects(levelCfg, level, channels, suffix=''):
     """InputTag strings of the selected objects of the given channels at `level` (e.g. for jet cleaning)."""
     return ['%sSel%s:%s' % (label(level, c), suffix, OBJECT_INSTANCE[levelCfg['channels'][c]['type']]) for c in channels]
+
+
+def selectedLeptonPtrs(levelCfg, level, channels):
+    """InputTag strings of the pointers to the selected leptons of dilepton channels (DileptonSelector leptonPtrs)."""
+    bad = [c for c in channels if levelCfg['channels'][c]['type'] != 'dilepton']
+    if bad:
+        raise ValueError('selected-lepton pointers exist for dilepton channels only, not %s' % bad)
+    return ['%sSel:leptonPtrs' % label(level, c) for c in channels]

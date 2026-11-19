@@ -8,7 +8,8 @@
 
 // Z -> ll: among the (already identified) leptons in src, the pair passing evsel::PairCuts with mass closest
 // to targetMass, if its pt is at least pairPtMin and no candidate of vetoSrcs other than the pair (dR > 0.01 from both)
-// exists. Products: bool; "boson" (0 or 1 candidate, the dilepton); "leptons" (0 or 2, leading first).
+// exists. Products: bool; "boson" (0 or 1 candidate, the dilepton); "leptons" (0 or 2, leading first);
+// "leptonPtrs" (pointers to the same two leptons in src, e.g. to find their PF candidates or dressing photons).
 class DileptonSelector : public edm::global::EDProducer<> {
 public:
   explicit DileptonSelector(const edm::ParameterSet& cfg)
@@ -17,7 +18,8 @@ public:
                                       [this](const edm::InputTag& t) { return consumes<edm::View<reco::Candidate>>(t); })),
         flag_(produces()),
         boson_(produces("boson")),
-        leptons_(produces("leptons")) {
+        leptons_(produces("leptons")),
+        leptonPtrs_(produces("leptonPtrs")) {
     cuts_.leadPtMin = cfg.getParameter<double>("leadPtMin");
     cuts_.subleadPtMin = cfg.getParameter<double>("subleadPtMin");
     cuts_.massMin = cfg.getParameter<double>("massMin");
@@ -45,6 +47,7 @@ public:
     const auto& leps = event.get(src_);
     const auto pair = evsel::selectDilepton(evsel::toObjs(leps), cuts_);
     std::vector<reco::LeafCandidate> boson, out;
+    std::vector<edm::Ptr<reco::Candidate>> ptrs;
     bool pass = false;
     if (pair) {
       const auto& a = leps[pair->first];
@@ -55,12 +58,14 @@ public:
       pass = extra == 0;
       if (pass) {
         out = {evsel::copy(a), evsel::copy(b)};
+        ptrs = {leps.ptrAt(pair->first), leps.ptrAt(pair->second)};
         boson.emplace_back(a.charge() + b.charge(), a.p4() + b.p4());
       }
     }
     event.emplace(flag_, pass);
     event.emplace(boson_, std::move(boson));
     event.emplace(leptons_, std::move(out));
+    event.emplace(leptonPtrs_, std::move(ptrs));
   }
 
 private:
@@ -68,6 +73,7 @@ private:
   const std::vector<edm::EDGetTokenT<edm::View<reco::Candidate>>> vetoes_;
   const edm::EDPutTokenT<bool> flag_;
   const edm::EDPutTokenT<std::vector<reco::LeafCandidate>> boson_, leptons_;
+  const edm::EDPutTokenT<std::vector<edm::Ptr<reco::Candidate>>> leptonPtrs_;
   evsel::PairCuts cuts_;
 };
 

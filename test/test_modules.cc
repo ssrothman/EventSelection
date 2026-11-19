@@ -39,6 +39,11 @@ TEST_CASE("DileptonSelector", "[modules]") {
     REQUIRE(l.size() == 2);
     CHECK(l[0].pt() == Approx(52));
     CHECK(l[1].pt() == Approx(40));
+    // pointers to the same leptons in src, in the same order
+    const auto& p = *ev.get<std::vector<edm::Ptr<reco::Candidate>>>("leptonPtrs");
+    REQUIRE(p.size() == 2);
+    CHECK(p[0].key() == 1);
+    CHECK(p[1].key() == 0);
   }
   {
     // Same sign.
@@ -46,6 +51,7 @@ TEST_CASE("DileptonSelector", "[modules]") {
     CHECK_FALSE(*ev.get<bool>());
     CHECK(ev.get<Cands>("boson")->empty());
     CHECK(ev.get<Cands>("leptons")->empty());
+    CHECK(ev.get<std::vector<edm::Ptr<reco::Candidate>>>("leptonPtrs")->empty());
   }
   {
     // Leading below 26.
